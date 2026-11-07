@@ -1,4 +1,5 @@
 {
   "release_label": "deepagents:queue",
+  "mirror_label": "deepagents",
   "hold_labels": ["needs-approval", "ready-for-human", "needs-info", "needs-triage", "wontfix"]
 }

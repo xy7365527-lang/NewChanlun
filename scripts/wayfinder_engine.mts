@@ -37,7 +37,7 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
-import { HOLD_LABELS, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraphAdmission as withEngineAdmission } from "../.sandcastle/deepagents-cutover.mts";
+import { HOLD_LABELS, MIRROR_LABEL, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraphAdmission as withEngineAdmission, withTicketHold, type LocalClaim } from "../.sandcastle/deepagents-cutover.mts";
 export { releaseLabel, HOLD_LABELS, withEngineAdmission };
 import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -1185,8 +1185,29 @@ function splitReceipt(spec: number, body: string, id: string): string {
   return `<!-- wayfinder-published:${spec}:${specBodyDigest(body)}:${encodeURIComponent(id)} -->`;
 }
 
+/**
+ * 旧票迁移前的持有判定（纯函数），输入是票级动作锁内的新鲜读数。已关票执行器不会再动，不算持有。
+ * 本机持有记录覆盖写 intent 后、挂镜像前的空窗；票面镜像在释放排空后才摘，是 GitHub 上可见的持有。
+ */
+export function migrationHold(v: {
+  state?: string;
+  labels?: Array<{ name: string }>;
+  assignees?: Array<{ login: string }>;
+}, claim: Pick<LocalClaim, "state" | "run_id"> | null): string | null {
+  if (normalizeState(v.state ?? "OPEN") === "CLOSED") return null;
+  const assignees = (v.assignees ?? []).map(a => a.login);
+  if (assignees.length) return `已被 ${assignees.join(",")} 认领，等其取消认领后再迁移`;
+  if (claim && claim.state !== "released") {
+    return `正由 ${claim.run_id} 持有（${claim.state}），等 executor release 后再迁移`;
+  }
+  if ((v.labels ?? []).some(l => l.name === MIRROR_LABEL)) {
+    return `票面仍有 ${MIRROR_LABEL} 镜像：持有未释放或释放未完成，排空后重跑 executor release 再迁移`;
+  }
+  return null;
+}
+
 /** 动作 2：先准备完整依赖图，再将实施票发布到现有释放流程。 */
-function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: EngineConfig): void {
+async function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: EngineConfig): Promise<void> {
   const spec = readCurrentSpec(a.spec);
   if (!currentSpecApproved(spec, a.spec, cfg.orchestrator)) return;
   const plan = parseSplitPlan(spec.body);
@@ -1230,9 +1251,11 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: E
     const rulings = t.rulings.map(n => `[#${n}](${issueUrl(n)})`).join(" + ");
     const plannedBody = `${identity}\nPart of [SPEC #${a.spec}](${issueUrl(a.spec)})（map [#${a.map}](${issueUrl(a.map)}) 图内实施票）。` +
       (rulings ? `决策链：${rulings}。` : "") + `\n\n## 目标（spec ${t.id}）\n\n${t.summary ?? "（见 spec 对应条目）"}\n`;
-    const body = existing?.body
-      ? (existing.body.includes(identity) ? existing.body : `${identity}\n${existing.body}`)
+    const bodyFor = (current: string | null | undefined) => current
+      ? (current.includes(identity) ? current : `${identity}\n${current}`)
       : plannedBody;
+    let body = bodyFor(existing?.body);
+    const found = existing !== undefined;
     if (!existing) {
       if (!stillApproved()) return;
       const created = createIssue(`[impl] ${t.id} ${t.title}`, body, []);
@@ -1241,19 +1264,26 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, cfg: E
     const number = existing.number;
     let names = (existing.labels ?? []).map(l => typeof l === "string" ? l : l.name);
     const published = (existing.body ?? "").includes(receipt);
-    if (!published) {
-      if ((existing.assignees ?? []).length || names.includes("deepagents")) {
-        throw new Error(`未完整发布的 #${number} 已被认领，等待现有执行者释放后再迁移`);
-      }
-      // 回收旧版本留下的提前发布标签；不引入另一套 consumer 准入规则。
-      const exposed = names.filter(l => ["ready-for-agent", "sandcastle", QUEUE_LABEL, IMPL_LABEL].includes(l));
-      if (exposed.length) ghOnce(`issue edit ${number} --remove-label ${shellQuote(exposed.join(","))}`);
-      names = names.filter(l => !exposed.includes(l));
-      if ((existing.body ?? "") !== body) ghOnce(`issue edit ${number} --body ${shellQuote(body)}`);
+    let state = existing.state;
+    if (found && !published) {
+      // 与执行器领取、释放共用票级动作锁；判定与写入都用锁内重读的票面，不用分页快照。
+      await withTicketHold(number, (claim) => {
+        const fresh = JSON.parse(gh(`issue view ${number} --json state,labels,assignees,body`)) as RawChild;
+        const why = migrationHold(fresh, claim);
+        if (why) throw new Error(`未完整发布的 #${number} ${why}`);
+        names = (fresh.labels ?? []).map(l => l.name);
+        state = fresh.state;
+        body = bodyFor(fresh.body);
+        // 回收旧版本留下的提前发布标签；不引入另一套 consumer 准入规则。
+        const exposed = names.filter(l => ["ready-for-agent", "sandcastle", QUEUE_LABEL, IMPL_LABEL].includes(l));
+        if (exposed.length) ghOnce(`issue edit ${number} --remove-label ${shellQuote(exposed.join(","))}`);
+        names = names.filter(l => !exposed.includes(l));
+        if ((fresh.body ?? "") !== body) ghOnce(`issue edit ${number} --body ${shellQuote(body)}`);
+      });
     }
     const id = issueDbId(number);
     if (!linked.some(i => i.number === number)) addSubIssue(a.map, id);
-    tickets.set(t.id, { number, id, body: published ? existing.body! : body, state: existing.state, labels: names });
+    tickets.set(t.id, { number, id, body: published ? existing.body! : body, state, labels: names });
   }
   // 补边是准备态收敛，不授予执行权；即使 PASS 撤销也完成已创建票的安全依赖。
   for (const t of plan) {
@@ -1312,7 +1342,7 @@ function actCloseGraph(a: Extract<Action, { kind: "close_graph" }>, _cfg: Engine
   console.log(`  ✓ 关闭 map #${mapNumber}（comment 已附）`);
 }
 
-function executeAction(action: Action, cfg: EngineConfig): void {
+async function executeAction(action: Action, cfg: EngineConfig): Promise<void> {
   switch (action.kind) {
     case "draft_spec":
       return actDraftSpec(action, cfg);

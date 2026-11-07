@@ -100,7 +100,7 @@ def test_setup_receipt_requires_reclaim_before_queue_release(queued, tmp_path, m
     engine._store(key, binding)
     _, _, _, _, receipt = setup_receipt(tmp_path, monkeypatch, case, binding)
     engine._path(key, '.remote.json').write_text(json.dumps(receipt))
-    release_claim(intake.claims, TICKET, unit.run_id, 'controller released')
+    release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, 'controller released')
     v2.github.issues[TICKET]['labels'].remove('deepagents:queue')
     v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
                         labels=('ready-for-agent', 'deepagents:queue'))
@@ -149,7 +149,7 @@ def test_setup_receipt_controls_manual_generation(tmp_path, monkeypatch, case):
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
     _, _, _, _, receipt = setup_receipt(tmp_path, monkeypatch, case, binding)
     engine._path(key, '.remote.json').write_text(json.dumps(receipt))
-    release_claim(ClaimStore(v2.claims_root), TICKET, run.spec.run_id, 'controller released')
+    release_claim(ClaimStore(v2.claims_root), v2.gateway(), TICKET, run.spec.run_id, 'controller released')
     second_unit = v2.register(f't{TICKET}-2')
     before = v2.writes()
     if case == 'npm':
