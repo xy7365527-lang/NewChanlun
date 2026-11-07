@@ -13,6 +13,14 @@ if (( $# != 1 )); then
 fi
 readonly feature="$1"
 readonly base_features="s_session"
+# #1875：CI_DELTA_SKIP_FILE（可选）每行「<lib|bin> <测试全名>」，列出同一 CI 内另有作业以相同 features 逐名精确执行的测试
+#   （同为 dev 档，但对方依赖优化级别与进程模型不同：每条单独进程、--exact），这里不再重复执行。
+#   「新增集合为空即失败」与「特性移除测试」两道门仍按完整集合判定；跳过条数写进日志。
+readonly skip_file="${CI_DELTA_SKIP_FILE:-}"
+if [[ -n "$skip_file" && ! -r "$skip_file" ]]; then
+  echo "::error title=Feature delta skip list unreadable::$skip_file" >&2
+  exit 1
+fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
@@ -56,9 +64,15 @@ for target in lib bin; do
   fi
   if (( count > 0 )); then
     names=()
+    skipped=0
     while IFS= read -r name; do
+      if [[ -n "$skip_file" ]] && grep -Fxq -- "$target $name" "$skip_file"; then
+        skipped=$((skipped + 1))
+        continue
+      fi
       names+=("$name")
     done <"$work/$target.delta"
+    echo "feature_delta target=$target skipped_elsewhere=$skipped"
     run_delta "$target" "${names[@]}"
   fi
   total=$(( total + count ))

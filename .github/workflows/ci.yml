@@ -446,7 +446,16 @@ jobs:
       #   已在 rust-test-s-session 各分片执行；新增集合为空即失败。拆前 CI 实测 15.4 分钟（run 39358379553）。
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
         if: ${{ !cancelled() && startsWith(matrix.group, 'native') }}
-        run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+        # #1875：#1488 Native 作业已用相同 features 逐名执行的锁（同为 dev 档，但它的依赖优化级别与进程模型不同：每条单独进程、
+        #   --exact），这里不再重跑。清单按「目标 测试名」取自该作业自己的计划（run-1488-delta-ci.py --print-plan），两边不会漂移。
+        #   实测重叠 59 条，其中含约 455 s 的 b2_native_warm_cold。两个作业的 if/needs/paths 门控须同步，见 s-fields-native-1488。
+        run: |
+          python3 ../.github/scripts/run-1488-delta-ci.py --mode Native --print-plan \
+            | python3 -c 'import json, sys; print("\n".join(lock["target"] + " " + lock["name"] for lock in json.load(sys.stdin)["locks"]))' \
+            > "$RUNNER_TEMP/native-1488-locks.txt"
+          echo "skip list: $(wc -l < "$RUNNER_TEMP/native-1488-locks.txt") Native locks run by #1488"
+          CI_DELTA_SKIP_FILE="$RUNNER_TEMP/native-1488-locks.txt" \
+            ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
       #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
@@ -932,6 +941,8 @@ jobs:
           if-no-files-found: error
 
   # #1488：共享 path 遍历核的 Native 消费者独立回归，不依赖 rust-check 的整套 feature delta。
+  # #1875：rust-test-s-session-extras (native) 不再重跑本作业 A/B/C 锁单里的测试（CI_DELTA_SKIP_FILE）。
+  #   两个作业的 if/needs/paths 等门控必须同步修改：只有本作业被跳过、extras 照跑时，这批锁在该轮 CI 里就一次都没执行。
   s-fields-native-1488:
     name: "#1488 固定字段共享核 (Native)"
     runs-on: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && 'boat-large/from=hc-gate-base' || 'ubuntu-latest' }}
