@@ -3,3 +3,5 @@
 ../approval-signing
 ruff==0.17.2
 mypy==2.4.0
+pytest-xdist==3.8.0
+execnet==2.1.2
