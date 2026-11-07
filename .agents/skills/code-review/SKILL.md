@@ -52,7 +52,7 @@ Look for the originating spec, in this order:
 
 ### 3. Identify the standards sources
 
-Anything in the repo that documents how code should be written, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`.
+Read the repo-root `REVIEW.md` first. It sets this repo's severity labels (Important / Nit / Pre-existing) and the evidence each finding needs. Tag every finding with one of those labels. This skill's output contract stays unchanged: keep the separate `## Standards` and `## Spec` sections and put each section's counts at the start of its summary. Then anything else in the repo that documents how code should be written, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`.
 
 On top of whatever the repo documents, the Standards axis always carries the **smell baseline** below — a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
 
