@@ -92,7 +92,9 @@ pub(super) fn pending_entry(
     let netted = super::tb03c_allocation::is_projected(event);
     // #1406 C8：`/2` 的签署缺口（q_rebase、追加投入）先于其余等待；`/1` 返回 None、原文案不变。
     let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, record)?;
-    let reason = if let Some(wait) = funding_wait {
+    let reason = if event["event"] == crate::history_simulation::intake::EVENT {
+        json!({"kind":"AwaitingDependency","on":"economic_components","source":"history-sim"})
+    } else if let Some(wait) = funding_wait {
         wait
     } else if event.get("q_rebase").is_some() && config.book_rules()? != Rules::Tb03cV3 {
         // `/3` 获批新版本已就绪的 q_rebase 照常待证据；其余域 q_rebase 仍是容量等待。
@@ -172,6 +174,11 @@ pub(super) fn resolve_image(
             .iter()
             .find(|f| f["fact_key"] == k.as_str())
             .ok_or("MissingDependency：Resolve 缺持久原事实")?;
+        if fact["event"]["event"] == crate::history_simulation::intake::EVENT {
+            return Err(
+                "MissingDependency：模拟外部事实缺命令归属/成本/利润分量证明，Pending 保留".into(),
+            );
+        }
         // #1406 H2：风险 Pending 可被 Reserve 按完整责任覆盖清除；净额待办独立由
         // 已 Recorded 且未分配定义，不能因清风险永久丢失。非净额仍须原 Pending。
         let reconstructed;

@@ -784,6 +784,11 @@ fn capture(
         return Ok(receipt);
     }
     check_operation_deadline(None, ingress_response_deadline)?;
+    crate::history_simulation::intake::verify_capture(
+        &config.manifest,
+        e,
+        required(&record, "raw_utf8")?,
+    )?;
     let token = required(&record, "token")?;
     let token_table = if config.book_rules()?.is_tb03c() {
         "facts"
@@ -1961,5 +1966,98 @@ mod read_page_tests {
         assert_eq!(error["kind"], "EconomicReadError");
         assert_eq!(error["code"], "IdentityConflict");
         assert!(state.entries.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod history_simulation_capture_tests {
+    use super::*;
+    use crate::economic_session::tb03c_book_tests::Space;
+    use crate::history_simulation::{
+        model::{Change, OrderKind, Side},
+        store as x,
+        tests::{batch, model, order},
+    };
+
+    #[test]
+    fn immutable_x_originals_enter_real_p4_and_stay_pending_without_components() {
+        let space = Space::new("history-sim-p4");
+        let x_db = space.0.join("x.db");
+        let mut xc = Connection::open(&x_db).unwrap();
+        x::initialize(&mut xc, &model(), "sim-x", "1").unwrap();
+        x::commit_batch(
+            &mut xc,
+            &batch(
+                0,
+                vec![Change::Submit {
+                    order: order("one", Side::Buy, 3, OrderKind::Limit { price: 100 }),
+                }],
+            ),
+        )
+        .unwrap();
+        let generated = x::commit_batch(&mut xc, &batch(1, vec![])).unwrap();
+        let manifest = json!({"schema_revision":"economic-manifest/1","session_id":"sim-p4","session_generation":"1","book_revision":"tb03c-book/1",
+            "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
+            "chongs":[{"chong_id":"one","symbol":"TEST","operation_level":"1","fixed_q":"10","db":space.0.join("b.db"),"socket":space.0.join("b.sock")}],
+            "authorized_sources":[{"source_namespace":"sim-x","source_epoch":"1","producer_id":"X:sim-p4","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ReadView"]}],
+            "history_simulation_source":{"source_namespace":"sim-x","source_epoch":"1","producer_id":"X:sim-p4","producer_epoch":"1","x_db":x_db,"model_content_hash":generated["model_content_hash"]},
+            "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"30000","queue_capacity":"2","max_connections":"2"},"clock":{"kind":"System"}});
+        let path = space.0.join("manifest.json");
+        std::fs::write(&path, canonical_json(&manifest)).unwrap();
+        let config = Config::load(&path, &space.0.join("e.db"), None).unwrap();
+        init(&config).unwrap();
+        let (mut c, runtime) = open(&config.db, false).unwrap();
+        let request = |id: &str, payload: Value| json!({"schema_revision":SCHEMA_V1,"session_id":"sim-p4","session_generation":"1","source_namespace":"sim-x","source_epoch":"1","producer_id":"X:sim-p4","producer_epoch":"1","message_id":id,"causal_refs":[],"payload_hash":hash(&payload),"payload":payload});
+        let mut forged = generated["originals"][0].clone();
+        forged["event"]["fill"]["fee"] = json!(99);
+        let p = json!({"op":"CaptureExternal","raw_utf8":canonical_json(&forged),"json_pointer":"/event","token":"forged","source_event_time":"1"});
+        let rejected =
+            handle(&mut c, &config, 1, 1, &runtime, &request("forged", p))["payload"].clone();
+        assert_eq!(rejected["kind"], "Error");
+        assert!(
+            rejected["error"].as_str().unwrap().contains("原字节"),
+            "{rejected}"
+        );
+        let mut records = Vec::new();
+        for (i, doc) in generated["originals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
+            let p = json!({"op":"CaptureExternal","raw_utf8":canonical_json(doc),"json_pointer":"/event","token":format!("t{i}"),"source_event_time":doc["event"]["source"]["source_event_time"]});
+            let req = request(&format!("capture{i}"), p);
+            let response = handle(&mut c, &config, 1, 1, &runtime, &req)["payload"].clone();
+            assert_eq!(response["kind"], "Recorded", "{response}");
+            assert_eq!(
+                response,
+                handle(&mut c, &config, 1, 1, &runtime, &req)["payload"]
+            );
+            records.push(response);
+        }
+        let (_, _, _, image) = latest(&c).unwrap();
+        assert_eq!(image["recorded"].as_array().unwrap().len(), 2);
+        assert_eq!(image["pending"].as_array().unwrap().len(), 2);
+        assert_eq!(image["pending"][0]["reason"]["on"], "economic_components");
+        assert!(image["book"].is_null());
+        let fact = &image["recorded"][0];
+        let p = json!({"op":"ResolveEvidence","evidence_id":"not-components","covered":[{"fact_key":fact["fact_key"],"token":fact["token"],"fact_hash":fact["fact_hash"]}],"frontier":{"source_namespace":"sim-x","source_epoch":"1","cursor":"1"},"dependency_version":"1"});
+        let refused =
+            handle(&mut c, &config, 1, 1, &runtime, &request("resolve", p))["payload"].clone();
+        assert_eq!(refused["kind"], "Error");
+        assert!(refused["error"].as_str().unwrap().contains("分量"));
+        assert!(
+            super::super::book::apply_in(&manifest, &image, fact, 10, "100")
+                .unwrap_err()
+                .contains("分量")
+        );
+        audit(&c, &config).unwrap();
+        drop(c);
+        let recovered = recover(&config).unwrap();
+        assert_eq!(recovered["kind"], "Recovered");
+        let (c, _) = open(&config.db, false).unwrap();
+        let (_, _, _, after) = latest(&c).unwrap();
+        assert_eq!(after["recorded"], image["recorded"]);
+        assert_eq!(after["pending"], image["pending"]);
     }
 }

@@ -61,3 +61,13 @@ mod tb03c_kill_tests;
 mod tb03c_rf01_tests;
 #[cfg(test)]
 mod tb03c_v2_kill_tests;
+
+/// 容量 epoch 的累计差量复用 ADR0032 唯一配额算法；不复用 E 的投影清单名分。
+pub(crate) fn simulation_increment(
+    from: i64,
+    to: i64,
+    weights: &[i64],
+    ranks: &[usize],
+) -> Result<Vec<i64>, String> {
+    allocation::increments(from, to, weights, ranks)
+}
