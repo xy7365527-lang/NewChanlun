@@ -182,7 +182,7 @@ GitHub 不提供跨评论读取与写操作的原子事务，最后一次读取�
 
 > **N-1 技术类决策预授权**（用户 2026-10-18 原话：「其实很多技术的东西 完全不需要我来做 我完全信任你的判断」）：本图 T 类 grilling 票由代理起草、独立审查通过后直接裁定。依此判定的 resolution 首行注明「本条依 #1323 Notes N-1 预授权判定」。
 
-**#1909 扩展**（用户直接授权本次流程改变）：P 类与 SPEC 同样经起草与非作者独审 PASS 由代理裁定并记账，删除普通用户审批门与 `/graph-approve`（真实资金与权限边界见 ADR 0041）；P 类 resolution 首行「本条依 #1909 代理独审裁定」。合入 main 仍是人闸。
+**#1909 扩展**（用户直接授权本次流程改变）：P 类与 SPEC 同样经起草与非作者独审 PASS 由代理裁定并记账，删除普通用户审批门与 `/graph-approve`（真实资金与权限边界见 ADR 0041）；P 类 resolution 首行「本条依 #1909 代理独审裁定」。合入 main 在非作者独审与适用 CI 通过后由代理执行；人工确认只限实盘下单与资金、密钥与凭证、CI 与分支保护配置。
 
 `wayfinder-workflow.md` 的「不碰决策票（v1）」只约束 wayfinder_engine 本体，裁决面是独立组件；该文同步加一行指向本文。
 
@@ -216,7 +216,7 @@ Sandcastle 宿主 `NewChanlun-sandcastle-host` 开启 `SANDCASTLE_HOST_AUTO_UPDA
 2. 裁决面 live：一张 T 类票走完分级、起草、独审、分支落文档、PR。
 3. 执行面：claim-loop 派出的实施工蜂实际产生输出（上下文非 0、有 commit 或明确 blocked 结论）。
 4. health-monitor 发现停摆能变 _red_ 并自愈，进度页可看。
-5. 以上改动经 PR 合入 main（人闸）。
+5. 以上改动经 PR 合入 main（非作者独审 + 适用 CI）。
 
 ### Codex 单票阶段交付（#1617，2026-10-25）
 

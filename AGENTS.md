@@ -7,7 +7,7 @@
 - 执行链：pstack 提供工作方法，Wayfinder 管票与图，Sandcastle 提供隔离执行，LangChain Deep Agents 驱动执行 loop。入口见 `.agents/skills/`、`.sandcastle/README.md`、`.sandcastle/docs/graph-engineering.md`、`.sandcastle/deepagents-pilot/README.md`。
 - 复用已有票；新开票前查 tracker 的全部状态及仓内相关材料。明确每项工作的唯一负责人和写入范围，不覆盖别人的改动。
 - T、P 与 spec 都经过起草、非作者独审，再由代理裁定；SPEC 使用绑定正文的结构化独审裁定记录；不等待人工批准或 `/graph-approve`。审查 BLOCK 必须返修或说明未解决问题，不能撤标签冒充通过。
-- 合入前须非作者独审和适用 CI 通过，并遵守当前任务的合入授权；Deep Agents 生产链使用异家族独审与 `deepagents/review`。审查依据候选补丁和有效上下文，显式重审不得被历史 PASS 覆盖。
+- 合入前须非作者独审和适用 CI 通过，通过后由代理合入；需要人工确认的只有实盘下单与资金、密钥与凭证、CI 与分支保护配置三类；Deep Agents 生产链使用异家族独审与 `deepagents/review`。审查依据候选补丁和有效上下文，显式重审不得被历史 PASS 覆盖。
 - 实施、审查和发布沿现有入口；恢复沿同一任务身份对账，不重复派工或提交。不要另造批准门、状态板或平行调度器。
 
 ## 运行边界

@@ -91,7 +91,7 @@ N 个候选会收到同一份任务 prompt，prompt 就是契约，扇出前必�
 ## Phase E：Graft（根代理亲自移植）
 
 - 把每个落选候选再走一遍，挑出值得搬进基底的东西。信号通常是每个候选 1–2 个点，不是大部分。
-- **手工折叠，不机械粘贴**；结果必须在同一个心智模型下自洽。代码产物的 graft 只能落到获授权的 Sandcastle synthesis 分支并经过人工合入闸，不得由根代理写入共享主工作区。
+- **手工折叠，不机械粘贴**；结果必须在同一个心智模型下自洽。代码产物的 graft 只能落到获授权的 Sandcastle synthesis 分支并经过合入闸（非作者独审 + 适用 CI），不得由根代理写入共享主工作区。
 - 记录 graft 了什么、来自哪个候选、拒绝了什么、为什么。拒绝记录是整份 record 里信号最高的部分。
 - N 个候选收敛到同一形态 = 强一致信号：在 record 里注明收敛，直接交付共识形态，不需要 graft。N 个候选严重发散 = Phase A 规格不足：本轮停止并如实报告，不取平均，**也不得在本次 arena 中重写任务后重跑**。
 
@@ -104,7 +104,7 @@ N 个候选会收到同一份任务 prompt，prompt 就是契约，扇出前必�
 ## 写代码候选的隔离（Prime 特有）
 
 - **写代码候选不在共享主工作区运行**。根代理 checkout / IPython 工作目录里跑并行写码候选 = 撞车 + 抹掉未提交改动。
-- 写代码候选只有在当前票据或用户明确授权写入时才能启动，并且必须走 **Sandcastle 隔离**：`.sandcastle/` 的确定性分支 + Docker 沙盒执行，候选各自一条 `sandcastle/...` 分支或独立 worktree；最终合成产物**必须经过 Sandcastle 与人工合入闸**——根代理不 merge、不 push、不动 main。未获写入授权时不得启动写代码候选，也不得退回共享工作区或外部 CLI。
+- 写代码候选只有在当前票据或用户明确授权写入时才能启动，并且必须走 **Sandcastle 隔离**：`.sandcastle/` 的确定性分支 + Docker 沙盒执行，候选各自一条 `sandcastle/...` 分支或独立 worktree；最终合成产物**必须经过 Sandcastle 与合入闸（非作者独审 + 适用 CI）**——根代理不 merge、不 push、不动 main。未获写入授权时不得启动写代码候选，也不得退回共享工作区或外部 CLI。
 - 只读候选（设计 / 分析 / 研究 / 文档）只走 RLM，不需要 Sandcastle。child 只可经 `agent_message`、根在 task scratch 内预分配的独立结果文件或 child 的 final JSONL 回流；根不得用外部进程代写候选或评委。
 - 除项目强制的 roster 登记外，根与 child 的所有文件写入都必须位于当前任务获授权的 task scratch；不得修改 tracked roster，不得在 scratch 外创建临时产物。
 
@@ -124,7 +124,7 @@ N 个候选会收到同一份任务 prompt，prompt 就是契约，扇出前必�
 - **调用契约降级**：初版曾删除上游 `disable-model-invocation: true` 并采用 `both`；#1139 真实任务出现重复 fan-out、直接 CLI fallback 与越界写入后，按 #1129 的单项回退门在 #1132 恢复 `disable-model-invocation: true`，现只保留 `/skill:pstack-arena` 显式入口。
 - **`run_in_background: true`（Cursor Task 后台）→ RLM 异步 admission**：`rlm('sub-task')` admission 立即返回句柄、结果经 `agent_message` / 文件回流；不保留 Cursor 的 Task/后台语义。
 - **模型选择**：上游的 `~/.cursor/rules/pstack-models.mdc`（arena runners / cross-judge pool）与 Cursor slug（`claude-fable-5-thinking-max` / `gpt-5.6-sol-max` / `grok-4.6-fast-xhigh` / `claude-opus-5-thinking-xhigh`）→ 移除，改按 Prime 运行时可用档选模型（`rlm.find_models(...)` 取 selector，子代理默认继承根代理模型）。
-- **输出隔离**：上游 `git worktree` / `/tmp/arena-<slug>/candidate-<n>/` → 只读候选走 RLM（各自 `session_dir`），写代码候选走 Sandcastle（确定性分支 + Docker 沙盒 + 人工合入闸）。
+- **输出隔离**：上游 `git worktree` / `/tmp/arena-<slug>/candidate-<n>/` → 只读候选走 RLM（各自 `session_dir`），写代码候选走 Sandcastle（确定性分支 + Docker 沙盒 + 合入闸：非作者独审 + 适用 CI）。
 - **递归深度**：上游允许候选再扇出；Prime 默认递归深度 = 1，候选与评委都是根代理直接子代理（一层），Pick / Graft / Verify 由根代理亲自执行。
 - **上游 principle-skill 交叉引用**：`Laziness Protocol` / `separate-before-serializing-shared-state` / `redesign-from-first-principles` / `prove-it-works` 是上游 principle skills 的名字，本仓无对应 Skill；保留其判据语义（更小表面积 / 分离后序列化 / 手工折叠 / 照常验证），不建同名 Skill。
 - **流程保留但加硬门**：Frame → Fan out → Cross-judge → Pick → Graft → Verify 六段、rubric 3–6 条、rationale 强制与 drop-out 记录继续保留；fan-out 只准一轮，少于 2 个有效候选即停，禁止任何直接 CLI fallback，写入限授权 task scratch。
