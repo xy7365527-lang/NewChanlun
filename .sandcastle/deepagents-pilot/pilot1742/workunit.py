@@ -12,10 +12,10 @@ from .domain import RunId, Sha, parse_run_id, parse_sha
 REPO = "xy7365527-lang/NewChanlun"
 FORBIDDEN_LABELS = frozenset({"sandcastle", "ready-for-agent", "wayfinder:impl", "wayfinder:grilling"})
 FORBIDDEN_PREFIX = "agent:"
-MIRROR_LABEL = "deepagents"
 DEDICATED_MARKER = "deepagents:dedicated-pilot #1742"
 QUEUE_POLICY = json.loads((Path(__file__).resolve().parents[2] / "queue-policy.json").read_text())
 RELEASE_LABEL = str(QUEUE_POLICY["release_label"])
+MIRROR_LABEL = str(QUEUE_POLICY["mirror_label"])
 HOLD_LABELS = frozenset(QUEUE_POLICY["hold_labels"])
 PARENT_EVENTS = frozenset({"parent_issue_added", "parent_issue_removed"})
 

@@ -20,7 +20,13 @@ from pilot1742 import approval, boat_execution, cli
 from pilot1742 import run as run_module
 from pilot1742.boat_execution import ExecutionUnknown, ForkIntent, new_execution
 from pilot1742.domain import DEEPAGENTS_OUTPUT_PROTOCOL, EffectUnknown, WorkerKey
-from pilot1742.executor import ApprovalRequired, load_unit, open_v2_run, release_claim
+from pilot1742.executor import (
+    ApprovalRequired,
+    load_unit,
+    open_v2_run,
+    release_claim,
+    run_quiet,
+)
 from pilot1742.run import Halted, PilotRun
 
 SPEC_BODY = '# SPEC\ndeepagents-scope: demo/\n\n## 行为依据\n依据 EXECUTOR.md 与 BOAT.md。\n'
@@ -663,8 +669,8 @@ def test_older_spec_receipt_stops_formally_then_cancel_drains_for_the_next_gener
             owner.run_worker('author', '旧回执不得复活')
     finally:
         owner.release()
-    record = release_claim(bench.intake.claims, TICKET, bench.unit.run_id, '旧 SPEC 产物已废弃，换代')
-    executor(bench.v2, bench.cutover, bench.unit)._previous_run_quiet(record)
+    record = release_claim(bench.intake.claims, bench.v2.gateway(), TICKET, bench.unit.run_id, '旧 SPEC 产物已废弃，换代')
+    run_quiet(record)
     assert cache.read_bytes() == receipt and not (Path(owner.spec.author_checkout) / 'demo/a.py').exists()
 
 

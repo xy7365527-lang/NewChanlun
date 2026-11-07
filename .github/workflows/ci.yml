@@ -1178,7 +1178,7 @@ jobs:
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
       - name: node:test — Sandcastle + wayfinder
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts scripts/wayfinder_engine.action-recheck.test.mts scripts/wayfinder_engine.split-publication.test.mts scripts/wayfinder_engine.hold-lifecycle.test.mts
 
   deepagents-pilot:
     runs-on: ubuntu-latest

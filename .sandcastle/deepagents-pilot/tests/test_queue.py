@@ -205,8 +205,15 @@ def test_engine_emission_to_queue_child_sigkill_recovery_and_exact_delivery(queu
     module = Path(__file__).resolve().parents[3] / 'scripts' / 'wayfinder_engine.mts'
     script = '''const m = await import(process.argv[1]);
       const label = m.releaseLabel(process.argv[2], process.argv[3]);
-      m.releaseTicket(4242, {read: () => JSON.stringify({state:'OPEN',labels:[],assignees:[]}),
-        write: cmd => { console.log(cmd); return ''; }}, label);'''
+      const spec = {number: 1340, title: 'SPEC: fixture', body: '# SPEC', state: 'OPEN'};
+      const pass = {user: {login: 'fixture'}, created_at: '2026-11-07T01:00:00Z', body: m.specRulingBody({specNumber: 1340,
+        verdict: 'PASS', author: 'draft', reviewer: 'review', digest: m.specBodyDigest(spec.body), evidence: '/fake/review'})};
+      const read = args => args.startsWith('issue view 1340 ') ? JSON.stringify(spec)
+        : args.includes('/issues/1340/comments') ? JSON.stringify([pass])
+        : JSON.stringify({title: '[impl] fixture', body: 'Part of [SPEC #1340]', state: 'OPEN', labels: [], assignees: []});
+      const why = m.releaseTicket(4242, {specs: [1340], orchestrator: 'fixture'},
+        {read, write: cmd => { console.log(cmd); return ''; }}, label);
+      if (why !== null) throw new Error(why);'''
     emitted = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', script,
                               module.as_uri(), str(v2.home), str(cutover.drain_root)],
                              check=True, capture_output=True, text=True).stdout.strip()
@@ -691,3 +698,110 @@ def test_background_approval_recheck_preserves_operator_interrupt(queued, monkey
     assert invoke(common + ['run', '--run-id', unit.run_id, '--resume'] + resources) == 0
     assert v2.claims() == [f'author-{v2.base}']
     assert v2.claim_record()['run_id'] == unit.run_id
+
+
+def engine_hold(v2):
+    """引擎迁移旧票时的持有判定：真实 withTicketHold 读本机持有记录，migrationHold 读当前票面。"""
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    issue = v2.github.issues[TICKET]
+    view = {'state': issue['state'].upper(), 'labels': [{'name': n} for n in issue['labels']],
+            'assignees': issue.get('assignees') or []}
+    script = '''const e = await import(process.argv[1]); const c = await import(process.argv[2]);
+      const why = await c.withTicketHold(Number(process.argv[3]),
+        claim => e.migrationHold(JSON.parse(process.argv[4]), claim), process.argv[5]);
+      console.log(JSON.stringify(why));'''
+    out = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', script,
+                          (root / 'scripts' / 'wayfinder_engine.mts').as_uri(),
+                          (root / '.sandcastle' / 'deepagents-cutover.mts').as_uri(),
+                          str(TICKET), json.dumps(view), str(v2.claims_root)],
+                         check=True, capture_output=True, text=True).stdout
+    return json.loads(out.strip().splitlines()[-1])
+
+
+def test_release_after_merge_ends_hold_on_github_and_is_not_redispatched(queued):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.executor import load_unit, open_v2_run, release_claim
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    v2.to_pass(run)
+    pr = run.publish_candidate()['pr']['number']
+    run.release()
+    assert 'deepagents' in v2.github.issues[TICKET]['labels']
+    assert '正由' in engine_hold(v2), 'awaiting_merge 期间引擎仍视为持有'
+    v2.github.merge_pull(pr)
+    assert intake.once(lambda _unit: pytest.fail('merged run restarted'))[TICKET]['delivery_phase'] == 'merged'
+    assert '正由' in engine_hold(v2), '合入不等于释放'
+
+    released = release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '已合入')
+    assert released.state == 'released' and not released.mirror_label
+    assert 'deepagents' not in v2.github.issues[TICKET]['labels'], '释放摘镜像，持有结束在 GitHub 上可见'
+    assert 'deepagents:queue' in v2.github.issues[TICKET]['labels'], '释放只摘镜像'
+    assert engine_hold(v2) is None, '真实释放之后引擎可迁移'
+    again = release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '重试')
+    assert again.state == 'released' and not again.mirror_label, '释放可重试'
+
+    rows = intake.once(lambda _unit: pytest.fail('merged delivery re-dispatched after release'))
+    assert rows[TICKET]['phase'] == 'awaiting_human' and '已合入' in rows[TICKET]['reason']
+    assert len(list((v2.home / 'units').glob('*.json'))) == 1
+
+
+def test_release_after_unobserved_merge_is_not_redispatched(queued):
+    from conftest import FAKE, MODELS
+
+    from pilot1742.executor import load_unit, open_v2_run, release_claim
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run = open_v2_run(v2.home, unit, load_unit(v2.home, unit.run_id)[1], executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    v2.to_pass(run)
+    v2.github.merge_pull(run.publish_candidate()['pr']['number'])
+    run.release()
+    release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '释放早于队列观察到合入')
+    rows = intake.once(lambda _unit: pytest.fail('merged delivery re-dispatched after release'))
+    assert rows[TICKET]['phase'] == 'awaiting_human' and '已合入' in rows[TICKET]['reason']
+
+
+def test_release_keeps_mirror_until_drained_and_old_release_cannot_strip_new_generation(queued):
+    import fcntl
+    import os
+
+    from pilot1742.claims import ClaimRefused
+    from pilot1742.executor import release_claim
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+    assert executor(v2, cutover, unit).claim(run_dir).state == 'active'
+    controller = os.open(run_dir / 'owner.lock', os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(controller, fcntl.LOCK_EX)
+    try:
+        pending = release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '主控退回')
+        assert pending.state == 'released' and pending.mirror_label, '控制进程未排空：记 released 但镜像保留'
+        assert 'deepagents' in v2.github.issues[TICKET]['labels']
+        assert '镜像' in engine_hold(v2), '释放未完成时引擎继续等待'
+    finally:
+        os.close(controller)
+    done = release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '主控退回')
+    assert not done.mirror_label and 'deepagents' not in v2.github.issues[TICKET]['labels'], '排空后重试完成释放'
+    assert engine_hold(v2) is None
+
+    second = intake.register(TICKET)
+    assert second.run_id == f't{TICKET}-2'
+    second_dir = PilotRun.run_dir(v2.home, second.run_id)
+    with pytest.raises(ApprovalRequired):
+        executor(v2, cutover, second).claim(second_dir)
+    signer.publish(second_dir / 'approvals' / 'spec_authorization.request', Decision.APPROVE)
+    assert executor(v2, cutover, second).claim(second_dir).generation == 2
+    assert 'deepagents' in v2.github.issues[TICKET]['labels']
+    before = v2.writes()
+    with pytest.raises(ClaimRefused):
+        release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, '旧释放重试')
+    assert v2.writes() == before and 'deepagents' in v2.github.issues[TICKET]['labels'], '旧释放不碰新代次镜像'
+    assert '正由' in engine_hold(v2)

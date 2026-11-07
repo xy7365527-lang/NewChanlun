@@ -138,6 +138,9 @@ class QueueIntake:
                 if unit.admission.proof != proof:
                     raise AdmissionRefused('registered queue proof changed')
                 return unit
+            merged = self._merged_run(existing)
+            if merged is not None:
+                raise QueueWaiting(f'awaiting_human: run {merged} 的交付 PR 已合入，不重派；请关闭本票')
             issue, spec = self.gateway.issue(ticket), self.gateway.issue(proof.spec_issue)
             scope = approved_scope(str(spec.get('body') or ''))
             base = self.gateway.get_ref('main')
@@ -170,6 +173,17 @@ class QueueIntake:
             finally:
                 os.unlink(temporary)
             return unit
+
+    def _merged_run(self, units: list[WorkUnit]) -> str | None:
+        """已合入的交付不因释放而重派。释放可能早于队列观察到合入，所以本机未记 merged 时也读 PR。"""
+        from .executor import delivery_status
+        for unit in units:
+            delivery = delivery_status(PilotRun.run_dir(self.state_root, unit.run_id))
+            number = ((delivery['state'] or {}).get('pr') or {}).get('number')
+            if delivery['phase'] == 'merged' or (type(number) is int
+                                                 and self.gateway.get_pr(number).get('merged') is True):
+                return unit.run_id
+        return None
 
     def once(self, run: Callable[[WorkUnit], int]) -> dict[int, dict[str, Any]]:
         from .executor import (
