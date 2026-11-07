@@ -114,3 +114,14 @@ kimi-export-*.md
 .playwright-mcp/
 # arch-hotzone 自动报告（#1197 监控产物，工作草稿不入仓）
 .chanlun/arch-hotzone-report-*.md
+
+# #1742 已出仓历史层；保留现役 watcher roster 和通用 .scratch 本地约定
+/.auto-memory-snapshot/
+/.scratch/i832c/
+/.scratch/wayfinder-767/
+/.rtas/review-results/
+/.rtas/.ceremony-in-progress
+/.chanlun/agent-roster-*.md
+!/.chanlun/agent-roster-2026-08-16.md
+/chanlun/agent-roster-*.md
+/chanlun/harness/

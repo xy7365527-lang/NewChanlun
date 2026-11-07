@@ -485,7 +485,7 @@ theta_v0 的对应不变式在 `rust/src/theta_v0/parser/stroke.rs:253-267`（`c
 
 ### 11b. ⚠️ 旧记忆条目不可引（#813 主控补条③）
 
-`.auto-memory-snapshot/feedback_chanlun_stroke_types.md` 写「新笔/**宽笔**（第81课）」并建议「TV 用宽笔」——**它把第 81 课的两件事混成一件**：`081:110`（**新笔定义**，3 根原始K）与 `081:258`（**答疑**「只要独立就行」）。**TV 的宽笔 ＝ 旧笔，不是新笔** ⟹ 该文件的映射结论**错**，不可直接引用（正确处置见 0.1 节：看盘严笔、决策新笔）。
+旧快照 [`.auto-memory-snapshot/feedback_chanlun_stroke_types.md`](https://github.com/xy7365527-lang/NewChanlun/blob/f43fac8f4673c605f24e4c69c9184560f118eb34/.auto-memory-snapshot/feedback_chanlun_stroke_types.md)（[外卷归档](file:///Volumes/AgentStorage/restart-20261107/slim/remaining-archive/implementation/historical-178-f43fac8f.tar)，包内保留原路径）写「新笔/**宽笔**（第81课）」并建议「TV 用宽笔」——**它把第 81 课的两件事混成一件**：`081:110`（**新笔定义**，3 根原始K）与 `081:258`（**答疑**「只要独立就行」）。**TV 的宽笔 ＝ 旧笔，不是新笔** ⟹ 该文件的映射结论**错**，不可直接引用（正确处置见 0.1 节：看盘严笔、决策新笔）。
 
 ## 12. 未测／查不到表（照实，不写成「不受影响」）
 
@@ -527,4 +527,4 @@ theta_v0 的对应不变式在 `rust/src/theta_v0/parser/stroke.rs:253-267`（`c
 ## Changelog
 
 - **v2.2** (2026-10-14): #1343 Q1–Q5 落 §7 / §7.1；raw 间隔极值区口径；policy 版本登记；T-23 入 §11。
-- **v2.1** (2026-08-16): #813 关票后主控补三条落地（#912）：① 0.1 节升级为三层包含链（TV宽笔 ⊂ 新笔 ⊂ TV严笔；「严」「宽」两字都反着用——第七处同名异物；实盘处置：看盘严笔/决策新笔）；② 新增 5b 节「方向是推论不是条件」（062:32 完全分类 + 081:258 答疑；订正「严笔是被改掉的旧表述」措辞）；③ 新增 11b 节旧记忆混淆警示（.auto-memory-snapshot 的宽笔映射结论错，不可引）。
+- **v2.1** (2026-08-16): #813 关票后主控补三条落地（#912）：① 0.1 节升级为三层包含链（TV宽笔 ⊂ 新笔 ⊂ TV严笔；「严」「宽」两字都反着用——第七处同名异物；实盘处置：看盘严笔/决策新笔）；② 新增 5b 节「方向是推论不是条件」（062:32 完全分类 + 081:258 答疑；订正「严笔是被改掉的旧表述」措辞）；③ 新增 11b 节旧记忆混淆警示（[旧快照](https://github.com/xy7365527-lang/NewChanlun/blob/f43fac8f4673c605f24e4c69c9184560f118eb34/.auto-memory-snapshot/feedback_chanlun_stroke_types.md)的宽笔映射结论错，不可引；外卷归档见 11b 节）。
