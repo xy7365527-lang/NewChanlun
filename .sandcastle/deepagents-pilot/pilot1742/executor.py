@@ -82,6 +82,7 @@ from .run import (
 )
 from .workunit import (
     MIRROR_LABEL,
+    ORCHESTRATOR_LOGIN,
     REPO,
     DedicatedPilot,
     Ineligible,
@@ -221,13 +222,13 @@ class TicketExecutor:
         if isinstance(admission, Queued):
             from .queue import approved_scope
             source, reason = spec_ruling(issue, body.decode("utf-8"), self.gateway.comments(issue),
-                                        os.environ.get("WAYFINDER_ORCHESTRATOR", self.gateway.owner))
+                                        os.environ.get("WAYFINDER_ORCHESTRATOR", ORCHESTRATOR_LOGIN))
             scope = approved_scope(body.decode("utf-8"))
             if any(not any(prefix.startswith(allowed) for allowed in scope) for prefix in self.unit.allowed_prefixes):
                 raise AdmissionRefused("registered scope exceeds current SPEC deepagents-scope")
-            decision = Approved("", reason) if source else Pending("rejected", "", reason, "spec_ruling")
+            decision = Approved("", reason) if source else Pending("awaiting_review", "", reason, "spec_ruling")
             _write_json(run_dir / "approvals" / "spec_authorization.status.json", {
-                "scope": "spec_authorization", "status": "approved" if source else "rejected",
+                "scope": "spec_authorization", "status": "approved" if source else "awaiting_review",
                 "source": "spec_ruling", "reason": reason, "target": spec_target(issue, body).encode(),
                 "claim_generation": generation, "checked_at": _now(), **(source or {})})
             freeze_signed_spec(run_dir, issue, body, decision, generation, source_meta=source)
@@ -991,7 +992,8 @@ def main(argv: list[str] | None = None) -> int:
                 pilot.clear_interrupt()
             return drive(pilot, recheck_approval=args.resume or args.recheck_approval, resume=args.resume)
     except ApprovalRequired as required:
-        print(json.dumps({"phase": "awaiting_human", "approval": decision_json(required.decision)}, ensure_ascii=False))
+        phase = "awaiting_review" if required.decision.status == "awaiting_review" else "awaiting_human"
+        print(json.dumps({"phase": phase, "approval": decision_json(required.decision)}, ensure_ascii=False))
         return 0
     except InsufficientSpace as error:
         # 图运行中派工建 checkout 时也会触发；检查点停在该工具调用之前，下一轮恢复同一 run 重做。

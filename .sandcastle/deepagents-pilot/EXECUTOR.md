@@ -154,7 +154,7 @@ deepagents-scope: rust/src/example/ rust/tests/example/
 
 ### 为新队列 run 提供 SPEC 授权
 
-依据 #1742 最新用户授权，保留 pstack、Matt 与 DeepAgents，普通 SPEC 不再要求人工批准。Queued 消费可信编排账号发布的「SPEC 独审裁定」。默认账号为 `xy7365527-lang`，可用 `WAYFINDER_ORCHESTRATOR` 与 Wayfinder 保持一致。非作者独审原件包含 `specNumber`、`digest`、`author`、`reviewer`、`verdict`，由 PR1915 的 `--spec-ruling <号> --review-file <原件>` helper 核对当前正文后发布，并附证据位置。部署消费者前须一并集成该生产者。裁定摘要按 CRLF→LF、trimEnd 后的 UTF-8 计算。无效 PASS、后续 BLOCK 或可信撤回都阻止动作，不回退旧签名。
+依据 #1742 最新用户授权，保留 pstack、Matt 与 DeepAgents，普通 SPEC 不再要求人工批准。Queued 消费可信编排账号发布的「SPEC 独审裁定」。可信账号是发裁定评论的 GitHub 用户登录名，与仓库 owner 无关；Wayfinder 引擎和本消费者都从 `.sandcastle/queue-policy.json` 的 `orchestrator_login` 读默认值，`WAYFINDER_ORCHESTRATOR` 可覆盖，两侧须设同一个值。非作者独审原件包含 `specNumber`、`digest`、`author`、`reviewer`、`verdict`，由 PR1915 的 `--spec-ruling <号> --review-file <原件>` helper 核对当前正文后发布，并附证据位置。部署消费者前须一并集成该生产者。裁定摘要按 CRLF→LF、trimEnd 后的 UTF-8 计算。无效 PASS、后续 BLOCK 或可信撤回都阻止动作，不回退旧签名。
 
 每次领取、派工、提交、推送、PR、状态和交付边界重新读取当前正文与完整评论。授权通过才冻结 `runs/<run>/spec/<号>.md` 原始 UTF-8 字节。旁注保留原始 `target`、代次及裁定 comment id、账号、作者、独审、证据和规范化 digest，不生成 nonce 或签批命令。worker 封包及 `_require_review_spec` 仍使用原始 target，不能改用规范化 digest。两个冻结文件间崩溃时，下一次有效裁定会重写收敛。
 
@@ -177,7 +177,7 @@ executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/wor
 
 队列登记先完整写入并同步临时文件，再排他发布 `units/<run>.json`。旧版本遗留的损坏单元保留原件，在状态页按票显示路径和错误，不重建或覆盖该票。没有在途工蜂的坏单元不阻挡其他票；该票仍有运行中或未知工蜂时继续占槽。
 
-状态分为 `queued`、`active`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。队列子进程使用 `executor run --recheck-approval` 重读当前正文与授权来源。即使人工中断发生在队列检查之后，它也只恢复批准核验，不清除中断请求，本轮状态仍为 `awaiting_human`。CLI 中只有显式 `executor run --resume` 清除人工中断请求，再按当前授权恢复同一 run。普通 `executor run` 不清除人工中断。Studio 的人工 Continue 入口保持不变。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
+状态分为 `queued`、`active`、`awaiting_review`、`awaiting_human`、`awaiting_merge` 和 `halted`，写入部署检出的 `.sandcastle/logs/deepagents-status.md` 与状态根的 `queue-status.json`。当前 SPEC 缺有效独审裁定时显示 `awaiting_review`，不等人批准，下一轮重核。队列子进程使用 `executor run --recheck-approval` 重读当前正文与授权来源。即使人工中断发生在队列检查之后，它也只恢复批准核验，不清除中断请求，本轮状态仍为 `awaiting_human`。CLI 中只有显式 `executor run --resume` 清除人工中断请求，再按当前授权恢复同一 run。普通 `executor run` 不清除人工中断。Studio 的人工 Continue 入口保持不变。没有有效切流记录时 `serve` 退出码为 0，说明停用原因，不读取 App、不登记单元、不改票面。
 
 launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
 

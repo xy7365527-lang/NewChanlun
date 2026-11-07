@@ -36,3 +36,11 @@ def test_ts_python_ruling_protocol(wayfinder_engine_path):
     for case, actual in zip(cases, json.loads(result.stdout), strict=True):
         assert actual['digest'] == spec_ruling_digest(case['body'])
         assert actual['approved'] == (spec_ruling(1340, case['body'], case['comments'], 'owner')[0] is not None)
+
+
+def test_engine_and_consumer_default_to_the_same_orchestrator_login(wayfinder_engine_path):
+    from pilot1742.workunit import ORCHESTRATOR_LOGIN
+    runner = "const m = await import(process.argv[1]); console.log(JSON.stringify(m.ORCHESTRATOR_LOGIN));"
+    result = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', runner,
+                             wayfinder_engine_path.as_uri()], text=True, capture_output=True, check=True)
+    assert json.loads(result.stdout) == ORCHESTRATOR_LOGIN == 'xy7365527-lang'

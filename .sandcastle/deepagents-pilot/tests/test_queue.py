@@ -780,6 +780,60 @@ def test_ruling_refuses_every_boundary_without_signature_fallback(queued, bad, e
     assert 'request_nonce' not in status and 'sign_command' not in status
 
 
+
+@pytest.mark.parametrize('override, login, trusted', [
+    (None, 'xy7365527-lang', True), (None, 'Newchanlun', False), (None, 'untrusted', False),
+    ('fixture-orchestrator', 'fixture-orchestrator', True), ('fixture-orchestrator', 'xy7365527-lang', False)])
+def test_orchestrator_login_does_not_follow_the_repository_owner(queued, monkeypatch, override, login, trusted):
+    from dataclasses import replace
+    v2, cutover, intake, signer = queued
+    if override is None:
+        monkeypatch.delenv('WAYFINDER_ORCHESTRATOR', raising=False)
+    else:
+        monkeypatch.setenv('WAYFINDER_ORCHESTRATOR', override)
+    unit = intake.register(TICKET)
+    moved = replace(v2.identity, repository='Newchanlun/NewChanlun')
+    v2.identity = v2.github.identity = moved
+    v2.github.repo = moved.repository
+    ex = executor(v2, cutover, unit)
+    assert ex.gateway.owner == 'Newchanlun'
+    publish_ruling(v2)
+    v2.github.issues[SPEC]['comments'][-1]['user']['login'] = login
+    run_dir = PilotRun.run_dir(v2.home, unit.run_id)
+    if trusted:
+        ex.claim(run_dir)
+        assert (run_dir / f'spec/{SPEC}.md').exists()
+    else:
+        with pytest.raises(ApprovalRequired, match='awaiting_review'):
+            ex.claim(run_dir)
+        assert v2.writes() == []
+
+
+
+@pytest.mark.parametrize('ruling', [None, 'BLOCK'])
+def test_missing_ruling_is_reported_as_awaiting_review_not_a_human_stop(queued, ruling):
+    v2, cutover, intake, signer = queued
+    if ruling:
+        publish_ruling(v2, ruling)
+
+    def child(unit):
+        try:
+            executor(v2, cutover, unit).claim(PilotRun.run_dir(v2.home, unit.run_id))
+        except ApprovalRequired:
+            return 0
+        return 75
+
+    rows = intake.once(child)
+    run_dir = PilotRun.run_dir(v2.home, f't{TICKET}-1')
+    status = json.loads((run_dir / 'approvals/spec_authorization.status.json').read_text())
+    assert rows[TICKET]['phase'] == 'awaiting_review' and status['status'] == 'awaiting_review'
+    assert status['reason'].startswith('review_block' if ruling else 'awaiting_review')
+    page = (v2.source / '.sandcastle/logs/deepagents-status.md').read_text()
+    assert page.index('## awaiting_review') < page.index(f'- #{TICKET} ') < page.index('## awaiting_human')
+    publish_ruling(v2)
+    assert intake.once(child)[TICKET]['phase'] == 'active'
+
+
 def test_low_disk_continues_reconciling_later_merged_ticket(delivered, monkeypatch):
     from types import SimpleNamespace
 

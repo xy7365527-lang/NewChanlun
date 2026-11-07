@@ -37,8 +37,8 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
-import { HOLD_LABELS, MIRROR_LABEL, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraphAdmission as withEngineAdmission, withTicketHold, type LocalClaim } from "../.sandcastle/deepagents-cutover.mts";
-export { releaseLabel, HOLD_LABELS, withEngineAdmission };
+import { HOLD_LABELS, MIRROR_LABEL, ORCHESTRATOR_LOGIN, QUEUE_LABEL, releaseLabel, graphAdmissionFrozen, withGraphAdmission as withEngineAdmission, withTicketHold, type LocalClaim } from "../.sandcastle/deepagents-cutover.mts";
+export { releaseLabel, HOLD_LABELS, ORCHESTRATOR_LOGIN, withEngineAdmission };
 import { execFileSync, execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -48,10 +48,10 @@ import { cliProxyEnv } from "../.sandcastle/cliproxy-env.mts";
 import { MAIN_MODEL, SUPPORTED_MAIN_MODELS } from "../.sandcastle/main-model.mts";
 
 // ── 顶部常量（编排者 / 周期 / 起草子代理模型） ──────────────────────────────
+// 编排账号默认读 queue-policy.json 的 orchestrator_login（与 Python 消费者同源）。
 // 环境变量覆盖：WAYFINDER_ORCHESTRATOR / WAYFINDER_POLL_SECONDS /
 //               WAYFINDER_SPEC_MODEL / WAYFINDER_SPEC_PROVIDER。
 // 默认 dry-run（安全默认）；真实执行须显式 --live。
-const DEFAULT_ORCHESTRATOR = "xy7365527-lang";
 const DEFAULT_POLL_SECONDS = 240; // 4 分钟（dispatcher 先例）
 // 起草子代理与当前主控同型（用户 2026-10-24，#1617）：Claude Code CLI 经本机
 // CLIProxyLocal 自动路由；实际模型只在 main-model.mts 配置，独立评审不靠异模型。
@@ -1452,7 +1452,7 @@ function parseArgs(argv: string[]): EngineConfig {
     }
   }
   return {
-    orchestrator: process.env.WAYFINDER_ORCHESTRATOR ?? DEFAULT_ORCHESTRATOR,
+    orchestrator: process.env.WAYFINDER_ORCHESTRATOR ?? ORCHESTRATOR_LOGIN,
     dryRun,
     pollSeconds,
     // 启动即校验（非主控同型直接 fail-loud，不等到图清起草时才炸）。

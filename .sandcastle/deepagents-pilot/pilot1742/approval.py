@@ -26,7 +26,7 @@ REPOSITORY_ID = 1150335160
 REQUEST_TTL = timedelta(hours=24)
 SIGN_COMMAND = '"/Library/Application Support/NewChanlun/newchanlun-approve" sign --request'
 
-PendingStatus = Literal["awaiting_human", "rejected", "needs_reconciliation", "not_configured"]
+PendingStatus = Literal["awaiting_human", "awaiting_review", "rejected", "needs_reconciliation", "not_configured"]
 
 
 @dataclass(frozen=True)

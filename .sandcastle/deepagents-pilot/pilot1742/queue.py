@@ -317,7 +317,8 @@ class QueueIntake:
                     if (run_dir / 'interrupt.request').exists():
                         phase, reason = 'awaiting_human', _stop_reason(run_dir)
                     elif waiting:
-                        phase, reason = 'awaiting_human', waiting[-1]
+                        review = waiting[-1].get('status') == 'awaiting_review'
+                        phase, reason = 'awaiting_review' if review else 'awaiting_human', waiting[-1]
                     elif code == 75 or code < 0:
                         phase, reason = 'active', f'child exit {code}; same run resumes next round'
                     elif phase not in ('awaiting_merge', 'merged'):
@@ -335,7 +336,8 @@ class QueueIntake:
                     if activity is not None:
                         occupied[ticket] = activity
                         previous = results[ticket].get('reason')
-                        phase = 'awaiting_human' if results[ticket].get('phase') == 'awaiting_human' else 'active'
+                        waiting_phase = results[ticket].get('phase') in ('awaiting_human', 'awaiting_review')
+                        phase = results[ticket]['phase'] if waiting_phase else 'active'
                         results[ticket].update(phase=phase, reason=f'{previous}; {activity}' if previous else activity)
                     else:
                         occupied.pop(ticket, None)
@@ -378,7 +380,7 @@ class QueueIntake:
         _write_json(self.state_root / 'queue-status.json', {str(k): v for k, v in results.items()})
         status_path = self.source_repo / '.sandcastle' / 'logs' / 'deepagents-status.md'
         lines = ['# 新执行器队列', '']
-        for phase in ('queued', 'active', 'awaiting_human', 'awaiting_merge', 'halted'):
+        for phase in ('queued', 'active', 'awaiting_review', 'awaiting_human', 'awaiting_merge', 'halted'):
             lines.extend([f'## {phase}', ''])
             lines.extend(f"- #{ticket} `{row.get('run_id', '')}` {row.get('head', '')} {row.get('reason') or ''}"
                          for ticket, row in results.items() if row['phase'] == phase)

@@ -17,6 +17,7 @@ QUEUE_POLICY = json.loads((Path(__file__).resolve().parents[2] / "queue-policy.j
 RELEASE_LABEL = str(QUEUE_POLICY["release_label"])
 MIRROR_LABEL = str(QUEUE_POLICY["mirror_label"])
 HOLD_LABELS = frozenset(QUEUE_POLICY["hold_labels"])
+ORCHESTRATOR_LOGIN = str(QUEUE_POLICY["orchestrator_login"])
 PARENT_EVENTS = frozenset({"parent_issue_added", "parent_issue_removed"})
 
 Playbook = Literal["feature", "bug-fix", "refactoring"]
