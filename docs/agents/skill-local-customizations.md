@@ -18,7 +18,7 @@
 | triage | SKILL.md | 同上（一次一问） | 2026-08-14 |
 | loop-me | SKILL.md | 同上（一次一问） | 2026-08-14 |
 | wayfinder | SKILL.md | 同上（一次一问）；另含本仓 wayfinder 纪律对齐 | 2026-08-14 |
-| code-review | SKILL.md + ADVERSARIAL-*.md | 术语用「PRD」，不用上游「spec」；并入 pstack `interrogate` 对抗评审能力（#1137：独立 reviewer / 统一 rubric / agreement map / lead judgment，Prime RLM 异步改写）；真实 3+3 路由 4/6 后降为 `/skill:code-review` explicit-only pilot，标准 Standards/Spec 自动路由不变 | 2026-08-14 / 2026-08-20 |
+| code-review | SKILL.md + ADVERSARIAL-*.md | 第 3 步先读仓根 `REVIEW.md`，发现标 Important / Nit / Pre-existing，双轴输出契约不变（#1923）；术语用「PRD」，不用上游「spec」；并入 pstack `interrogate` 对抗评审能力（#1137：独立 reviewer / 统一 rubric / agreement map / lead judgment，Prime RLM 异步改写）；真实 3+3 路由 4/6 后降为 `/skill:code-review` explicit-only pilot，标准 Standards/Spec 自动路由不变 | 2026-08-14 / 2026-08-20 |
 | to-spec | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
 | claude-handoff | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
 | setup-matt-pocock-skills | SKILL.md, issue-tracker-github/gitlab/local.md | 同上（PRD 术语） | 2026-08-14 |
