@@ -5,7 +5,7 @@
 //!
 //! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
 //!
-//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//! ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#761 C7-E2 执行票订正）
 //!
 //! - **名分**：**现役**——本文件的 `apply_t` 在 `rec_stream.rs:644,688` 生产路径
 //!   被直接调用（`super::apply_t(&current, k, self.mode)`），是同目录 recursive_t/(b)

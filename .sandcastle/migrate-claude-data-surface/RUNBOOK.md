@@ -263,10 +263,7 @@ claude plugin list                                    # 核对已装插件
    本票不建盘。
 2. **`~/.claude/projects/` 小文件 p95**：#1239 显示 SQLite/小文件在 VDO 上明显变慢；迁移前在 canary 卷
    抽样读写该目录，超过阈值即按 #1239 风险口径向 map owner 上报，不硬迁。
-3. **仓库项目级 hooks 的绝对路径**：本仓 `.claude/settings.json` 的 `UserPromptSubmit` hook 硬编码
-   `bash /Users/silencehan/Projects/NewChanlun/scripts/wayfinder_session_brief.sh`。若 Claude Code 在 VM 内
-   跑该仓库，此 macOS 绝对路径不存在——需二选一：仓库路径在 VM 内一致挂载/同步，或该 hook 做
-   host 条件化（`uname` 分支）。本票只标记，改仓库 hook 另票。
+3. **仓库项目级 hooks**：#1742 已移除重复注入 Wayfinder 便条的 `UserPromptSubmit` hook，无需在 VM 恢复该绝对路径。历史原件见 `/Volumes/AgentStorage/restart-20261107/slim/docs-archive/before-3d61fb/scripts/wayfinder_session_brief.sh`。
 4. **执行位置**：默认 #1236 ①「CLI 在 Linux VM 内运行」。若保留 macOS 侧 CLI 而仅把数据面放 XFS，
    则需单 VM 受控导出且 socket/lock 不放网络文件系统——与本票「数据面进 XFS」目标冲突，不推荐。
 5. **`.claude.json` 白名单的充分性**：只保留 `mcpServers` 是保守默认；若需要保留 trust/审批态，

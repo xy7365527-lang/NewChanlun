@@ -163,7 +163,7 @@ def test_manual_generation_uses_only_stopped_failure_evidence(tmp_path, monkeypa
     run = v2.run(unit)
     engine, key, binding, cli = stopped_worker(run, monkeypatch)
     receipt = stage_evidence(engine, key, binding, case, exit_code)
-    release_claim(ClaimStore(v2.claims_root), TICKET, unit.run_id, 'controller released')
+    release_claim(ClaimStore(v2.claims_root), v2.gateway(), TICKET, unit.run_id, 'controller released')
     second_unit = v2.register(f't{TICKET}-2')
     before = v2.writes()
     if case in DRAINED and not (case == 'supervisor' and exit_code == 0):
@@ -195,7 +195,7 @@ def test_queue_slot_uses_same_stopped_failure_evidence(queued, monkeypatch, case
     if has_intent:
         (run.dir / 'intents').mkdir(exist_ok=True)
         (run.dir / 'intents' / f'{key.name}.json').write_text('{}')
-    release_claim(intake.claims, TICKET, unit.run_id, 'controller released')
+    release_claim(intake.claims, v2.gateway(), TICKET, unit.run_id, 'controller released')
     v2.github.issues[TICKET]['labels'].remove('deepagents:queue')
     v2.github.add_issue(TICKET + 1, body=f'Part of [SPEC #{SPEC}]', parent=SPEC,
                         labels=('ready-for-agent', 'deepagents:queue'))

@@ -15,7 +15,7 @@
 //!
 //! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
 //!
-//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//! ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#761 C7-E2 执行票订正）
 //!
 //! - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
 //!   main 上）。PyO3 导出面 `run_recursive_t`（`ffi.rs:74`）原判"零 python 调用方"（名分表

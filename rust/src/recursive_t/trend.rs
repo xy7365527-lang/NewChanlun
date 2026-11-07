@@ -9,7 +9,7 @@
 //!
 //! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
 //!
-//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//! ## 名分（`docs/adr/0004-generation-constitution.md` 「现役代码名分五态」，#761 C7-E2 执行票订正）
 //!
 //! - **名分**：**现役**——同簇（center/divergence/operator/types/mod::iterate）既有独立
 //!   python 调用方，也是同目录 recursive_t/(b) T 引擎（12062 行，E3 处置范围）生产路径的

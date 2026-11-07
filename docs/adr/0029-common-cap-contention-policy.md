@@ -34,7 +34,7 @@
 
 记录形状 ⟨policy_id, version, cap, currency, valid_through, authorizer, authorized_at, profile_id⟩。注入/取出/改额都是新版本；过期后新 Reserve 拒绝，既有授信不受影响。
 
-**cap 数值不在本 ADR 给出（根补充）**：随具体能力验证或生产激活，由用户签署一版政策记录；本 ADR 不填任何默认金额，票面「不填未经确认的 cap」仍成立。账户权益快照不作 cap 来源（[ADR 0028](0028-first-capability-verification-profile.md) 的 P1 是测试资金）；在有真实账户的 profile 上，它只作 TB-08 偿付性核验，与 cap 判的不是同一件事。
+**cap 数值不在本 ADR 给出（根补充）**：随具体资金能力验证或生产激活，由用户签署一版资金政策记录（独立资金硬门，不是普通 P/SPEC 审批；普通研发授权后继见 ADR 0041「授权来源与生效边界」）；本 ADR 不填任何默认金额，票面「不填未经确认的 cap」仍成立。账户权益快照不作 cap 来源（[ADR 0028](0028-first-capability-verification-profile.md) 的 P1 是测试资金）；在有真实账户的 profile 上，它只作 TB-08 偿付性核验，与 cap 判的不是同一件事。
 
 ## 被否方案
 

@@ -11,7 +11,7 @@
 ### 一、记录形状与读法
 `tower_base_ref` 的值域与 `zhongshu.md` §2.1.1 一致；当前 `L0 = segment`，机读记录为 `tower-base/1`（#1626）。`kline3`／`trade3` 只在相应真实构件与数据 profile 具备时可签，缺位时显式拒绝，不以线段输入冒充。
 
-政策 id 族 `#1354/cost-stop-policy/v1`。记录 ⟨policy_id, version, profile_id, symbol, granularity, tower_base_ref, inputs{fee(Known, 费率簿引用含 source_url/retrieved_at/tier/role), slippage(Known|ProxyLowerBound|Missing), latency_error(同), holding(funding/borrow 引用 | Missing)}, amplitude{pairing=ROUNDTRIP, per_level[{level, median, lower_bound_95, n, max_month_cluster, windows[]}], probe_run_ref}, threshold{form=ratio_lb_ge_theta, theta 整数对(用户签署), authorizer, authorized_at}, evidence_gate(继承 ADR 0022 裁定六/七), valid_through, supersedes⟩。比值 `r(ℓ) = A_ℓ / (2·fee + slippage + latency_error [+ holding])`，A_ℓ 取 ROUNDTRIP 波幅单边 95% 下界（按月 block bootstrap）。通过 ⟺ `lb(r) ≥ θ` ∧ 证据门；`InsufficientEvidence` 与 `Fail` 分开。θ 由用户签署；系统拒绝 θ < 1（约束，非默认值）。全部定点整数。
+政策 id 族 `#1354/cost-stop-policy/v1`。记录 ⟨policy_id, version, profile_id, symbol, granularity, tower_base_ref, inputs{fee(Known, 费率簿引用含 source_url/retrieved_at/tier/role), slippage(Known|ProxyLowerBound|Missing), latency_error(同), holding(funding/borrow 引用 | Missing)}, amplitude{pairing=ROUNDTRIP, per_level[{level, median, lower_bound_95, n, max_month_cluster, windows[]}], probe_run_ref}, threshold{form=ratio_lb_ge_theta, theta 整数对(用户签署), authorizer, authorized_at}, evidence_gate(继承 ADR 0022 裁定六/七), valid_through, supersedes⟩。比值 `r(ℓ) = A_ℓ / (2·fee + slippage + latency_error [+ holding])`，A_ℓ 取 ROUNDTRIP 波幅单边 95% 下界（按月 block bootstrap）。通过 ⟺ `lb(r) ≥ θ` ∧ 证据门；`InsufficientEvidence` 与 `Fail` 分开。交易成本政策的 θ 仍由用户授权签署；普通研发方法和离线参数按 ADR 0041「授权来源与生效边界」由代理独审裁定，不冒充用户签名、不自动启用交易。系统拒绝 θ < 1（约束，非默认值）。全部定点整数。
 
 ADR 0035 `amplitude.pairing` 保持单值 ROUNDTRIP，不恢复 AMP_EXEC。依据 [#907 resolution 评论5194145006](https://github.com/xy7365527-lang/NewChanlun/issues/907#issuecomment-5194145006) 的三步：成本每趟往返支付；与其可比的波幅是同一趟往返能吃到的幅度；相邻同向点不对应完整交易。标签 `[新缠论:推论]`，排除类别为「违已裁推论」，不以拟合好坏作选择理由。该评论的否证口逐字为：“若能论证「成本也可以按单边逐点计而不按往返计」，则 AMP_EXEC 回到候选。”逐字原件见 #907 该 resolution。若将来满足否证口，仍按现行裁定变更流程处理；后一句是流程要求，不冒称 #907 原话。
 
@@ -25,7 +25,7 @@ ADR 0035 `amplitude.pairing` 保持单值 ROUNDTRIP，不恢复 AMP_EXEC。依�
 
 > 2026-10-26 用户批准 #1598：本节将合法选择落为具名版本字段；未签数值与未标定能力不因方法批准自动生效。
 
-`second_layer.rule`。可选值 = {`order_relation`（默认，出处：ADR 0035 裁定四:21，序关系判据，无需签数），`share_threshold{theta2}`（待标定，前置 S4-a/S4-b 修完）}。两值语义差异：(1) `order_relation` = 「主因已转为到底」⟺ `share_lb_95(reached_bottom) > share_ub_95(divergence_not_judged)` ∧ 证据门（ADR 0035:21），判据形式完全由读数区间序关系决定、不需用户签数值阈值；(2) `share_threshold{theta2}` = 「逐层、逐窗的已到底占比单边置信下界 ≥ θ₂」∧ 下述具名证据门，θ₂ 为签署门字段（默认 AwaitingPolicy{theta2}，推荐值进签署单、用户批复后生效），须在读数前预登记版本；引用已授权的#1677/evidence-gate/v1不要求重签，改六字段才另签v2。两值共同前置：S4-a/S4-b 修完（到底分类器与延伸实例证据收集）。代价：`share_threshold` 多签一个数（θ₂ 整数对）、多一次签署版本预登记流程。占比阈值为 ADR 0041 允许的选择，不再列入被否方案。
+`second_layer.rule`。可选值 = {`order_relation`（默认，出处：ADR 0035 裁定四:21，序关系判据，无需签数），`share_threshold{theta2}`（待标定，前置 S4-a/S4-b 修完）}。两值语义差异：(1) `order_relation` = 「主因已转为到底」⟺ `share_lb_95(reached_bottom) > share_ub_95(divergence_not_judged)` ∧ 证据门（ADR 0035:21），判据形式完全由读数区间序关系决定、不需用户签数值阈值；(2) `share_threshold{theta2}` = 「逐层、逐窗的已到底占比单边置信下界 ≥ θ₂」∧ 下述具名证据门，θ₂ 为签署门字段（默认 AwaitingPolicy{theta2}，推荐值进签署单；用于真实交易时取得用户授权后生效，普通研发选择按 ADR 0041 的代理裁定合同记来源），须在读数前预登记版本；引用已授权的#1677/evidence-gate/v1不要求重签，改六字段才另签v2。两值共同前置：S4-a/S4-b 修完（到底分类器与延伸实例证据收集）。代价：`share_threshold` 多签一个数（θ₂ 整数对）、多一次签署版本预登记流程。占比阈值为 ADR 0041 允许的选择，不再列入被否方案。
 
 Q6 的既裁部分：引用 `#1677/evidence-gate/v1`（origin/main 的 ADR0022 修订§1–4、§6，原件见 ADR 0022），v1 六值为 confidence=95/100、block_unit=CalendarMonthUTC、min_events=30、min_blocks=12、min_windows=3、min_coverage=1/2。方法仍为时间块 bootstrap；下界用分布的 (1−confidence) 分位；固定规则为单边下界而非点估计、互不重叠窗口、每窗各自过线、不以合计替代。窗口表及版本早于 run_started_at 冻结，覆盖按预登记数据集首末 bar 时间区间计。v1已获授权，不能误写其缺用户重签；改六值须另签v2。
 
@@ -33,7 +33,7 @@ Q6 新增方法（用户 2026-10-26 已批准；θ₂ 数值仍待签）：`shar
 
 具体算法：按所引 block_unit 将该窗事件分块，保留块内全部事件及依赖；从该窗 m 个非空块有放回抽 m 块，每次取合并事件的分子总数/分母总数，不平均各块比例。method_id=`descent-share/block-bootstrap/1`、resamples=10000、seed=0；PRNG固定PCG-XSH-RR 64/32（stream=1），块索引用拒绝取模避免偏差。以上算法标识/次数/随机种子和实现版本均在读数前记录；它们属于Q6已批准方法，不加入或改写evidence_gate六字段。每次重采样按抽样块计重复，得B个精确有理占比；升序排列，取第 ceil((1−confidence)×B) 项（1-based）为下界，不作插值。固定种子仅保证可复现，不替代区间有效性；在#1441实现时以独立定义oracle和同seed双跑检验方法。
 
-每层每窗分别须 events≥min_events、非空块数≥min_blocks；每层所报窗口数≥min_windows，窗口互不重叠、合计时长覆盖≥min_coverage数据集区间。有效窗各自比较 `share_lb(reached_bottom) ≥ θ₂`，所有窗全过才给该层通过；所有被宣称通过的层逐层满足，不能以合计或其他层补偿。门不足为InsufficientEvidence，不是Fail；完整门成立但任一窗下界<θ₂为Fail。θ₂保持AwaitingPolicy，未签不运行share_threshold。默认 `order_relation` 及其已裁比较式不改；两规则共同前置S4-a/S4-b。本次用户批准完整方法及政策形式，不在这里代签θ₂。
+每层每窗分别须 events≥min_events、非空块数≥min_blocks；每层所报窗口数≥min_windows，窗口互不重叠、合计时长覆盖≥min_coverage数据集区间。有效窗各自比较 `share_lb(reached_bottom) ≥ θ₂`，所有窗全过才给该层通过；所有被宣称通过的层逐层满足，不能以合计或其他层补偿。门不足为InsufficientEvidence，不是Fail；完整门成立但任一窗下界<θ₂为Fail。θ₂保持AwaitingPolicy，未签不运行share_threshold。默认 `order_relation` 及其已裁比较式不改；两规则共同前置S4-a/S4-b。2026-10-26 用户批准完整方法及政策形式、未签 θ₂，这是历史事实；后续普通研发授权适用 ADR 0041「授权来源与生效边界」，真实交易阈值硬门保留。
 
 原记录 `DescentBottomEvidence{run_ref, classification_set(#852), per_class{count, share_lb_95, share_ub_95}, windows[], base_ref}` 保留；新增事件分母只用于 share_threshold，不改既有 `(重,S稳定点)` 操作统计。当前 S4-a/S4-b 证据仍未齐，阶段二不启用。
 
