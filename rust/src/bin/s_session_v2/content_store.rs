@@ -122,6 +122,8 @@ fn read_material(
         }),
     )
 }
+/// 无 scope 节点读的缓存语句文本；#1890 只读快照的第 4 道门按它找同文语句。
+const READ_NODE_SQL: &str = "SELECT tag, body FROM s_content_nodes WHERE digest=?1";
 fn read_material_reserved(
     conn: &Connection,
     digest: &NodeDigest,
@@ -131,7 +133,7 @@ fn read_material_reserved(
     SQL_READS.with(|calls| calls.set(calls.get() + 1));
     // 保留无 scope 路线原有的 statement cache；两路只改变正文取得/许可方式。
     let result: Option<(i64, Vec<u8>, Option<NativeReservation>)> = if work.is_none() {
-        conn.prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
+        conn.prepare_cached(READ_NODE_SQL)
             .map_err(storage_error)?
             .query_row(params![&digest[..]], |row| {
                 Ok((row.get(0)?, row.get(1)?, None))
@@ -1021,9 +1023,290 @@ impl NodeSink for TxStore<'_, '_> {
     }
 }
 
+/// #1890：一次核验的只读快照作用域。作用域内的代码只拿到它：[`SnapshotQuery`] 白名单里的
+/// 固定文本只读 SELECT、既有的只读读取函数与本模块的节点读者；拿不到底层连接，因此无从
+/// 写入、改 DDL/authorizer/limit、结束事务或另开 reader（编译负例
+/// `issue1890_read_snapshot_refusal`）。已核原件表挂在这里，随作用域丢弃，不跨作用域。
+pub(super) struct ReadSnapshot<'s> {
+    tx: &'s Transaction<'s>,
+    frames: std::cell::RefCell<SnapshotFrames>,
+}
+
+/// #1890：作用域内唯一能执行的 SQL 文本。字段私有，模块外只能取这里列出的常量，
+/// 不能拼出别的语句；`CheckedStatement::prepare` 另核单条语句且 `sqlite3_stmt_readonly`。
+#[derive(Clone, Copy)]
+pub(super) struct SnapshotQuery {
+    sql: &'static std::ffi::CStr,
+}
+impl SnapshotQuery {
+    #[cfg(test)]
+    pub(super) fn sql(self) -> &'static std::ffi::CStr {
+        self.sql
+    }
+    pub(super) const META_VALUE: Self = Self {
+        sql: c"SELECT value FROM meta WHERE key = ?1",
+    };
+    pub(super) const CATALOG_ALL: Self = Self {
+        sql: c"SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog",
+    };
+    pub(super) const CATALOG_ROW: Self = Self {
+        sql: c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
+    };
+    pub(super) const INPUT_MESSAGE: Self = Self {
+        sql: c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
+    };
+    pub(super) const CLOCK_COMMIT: Self = Self {
+        sql: c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2",
+    };
+    pub(super) const WRITER_EPOCHS: Self = Self {
+        sql: c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal",
+    };
+    pub(super) const PUBLICATION_ROWS: Self = Self {
+        sql: c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation",
+    };
+    pub(super) const PUBLICATION_MANIFESTS: Self = Self {
+        sql: c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation",
+    };
+    pub(super) const PUBLICATION_PUBLIC_ROOTS: Self = Self {
+        sql: c"SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation",
+    };
+    pub(super) const OBJECTS: Self = Self {
+        sql: c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid",
+    };
+    pub(super) const WITNESSES: Self = Self {
+        sql: c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid",
+    };
+    pub(super) const RELATIONS: Self = Self {
+        sql: c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid",
+    };
+    pub(super) const OBSERVATIONS: Self = Self {
+        sql: c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid",
+    };
+    #[cfg(test)]
+    pub(super) const ALL: [Self; 13] = [
+        Self::META_VALUE,
+        Self::CATALOG_ALL,
+        Self::CATALOG_ROW,
+        Self::INPUT_MESSAGE,
+        Self::CLOCK_COMMIT,
+        Self::WRITER_EPOCHS,
+        Self::PUBLICATION_ROWS,
+        Self::PUBLICATION_MANIFESTS,
+        Self::PUBLICATION_PUBLIC_ROOTS,
+        Self::OBJECTS,
+        Self::WITNESSES,
+        Self::RELATIONS,
+        Self::OBSERVATIONS,
+    ];
+}
+
+impl<'s> ReadSnapshot<'s> {
+    /// 构造后调用方不得再直接使用 `tx`：入口以同名遮蔽，其余处只作调用实参的临时量。
+    pub(super) fn new(tx: &'s Transaction<'_>) -> Self {
+        Self {
+            tx,
+            frames: Default::default(),
+        }
+    }
+    /// 只执行白名单里的固定文本；CheckedStatement 另核单条、`sqlite3_stmt_readonly`。
+    pub(super) fn prepare(
+        &self,
+        query: SnapshotQuery,
+    ) -> rusqlite::Result<newchan_rust::sqlite_checked::CheckedStatement<'s>> {
+        newchan_rust::sqlite_checked::CheckedStatement::prepare(self.tx, query.sql)
+    }
+    pub(super) fn is_readonly_main(&self) -> rusqlite::Result<bool> {
+        self.tx.is_readonly(rusqlite::MAIN_DB)
+    }
+    /// 证明绑定：是否读同一事务（原 `std::ptr::eq(tx, ..)`）。
+    pub(super) fn same(&self, other: &ReadSnapshot<'_>) -> bool {
+        self.reads(other.tx)
+    }
+    pub(super) fn reads(&self, tx: &Transaction<'_>) -> bool {
+        std::ptr::eq(self.tx, tx)
+    }
+    /// 本作用域的节点读者，共用本快照的已核原件表。
+    pub(super) fn store(&self) -> Result<ReadStore<'_>, CodecError> {
+        ensure_format(self.tx)?;
+        Ok(ReadStore {
+            conn: self.tx,
+            same_material: None,
+            frames: Some(&self.frames),
+        })
+    }
+    /// 以下只转发既有的只读读取函数，全部经这里。测试构建下断言被转发的读取既没写库
+    /// （`total_changes` 不变），也没把事务升级到 READ 以上；将来有人在这些函数体里加写，
+    /// 先挂的是单测，而不是只剩运行时门默默作废缓存、速度退回基线。
+    fn forward<T>(&self, read: impl FnOnce(&'s Transaction<'s>) -> T) -> T {
+        #[cfg(test)]
+        let before = (self.tx.total_changes(), Self::txn_state(self.tx));
+        let out = read(self.tx);
+        #[cfg(test)]
+        {
+            assert_eq!(
+                self.tx.total_changes(),
+                before.0,
+                "ReadSnapshot 转发的读取写了库"
+            );
+            let after = Self::txn_state(self.tx);
+            assert!(
+                after <= before.1.max(rusqlite::ffi::SQLITE_TXN_READ),
+                "ReadSnapshot 转发的读取把事务升级到了 READ 以上：{} → {after}",
+                before.1
+            );
+        }
+        out
+    }
+    #[cfg(test)]
+    fn txn_state(tx: &Transaction<'_>) -> i32 {
+        // SAFETY：只读查询本连接所有库的事务状态，不改连接或语句状态。
+        unsafe { rusqlite::ffi::sqlite3_txn_state(tx.handle(), std::ptr::null()) }
+    }
+    pub(super) fn verify_required_meta(&self) -> Result<i64, String> {
+        self.forward(|tx| crate::verify_required_meta(tx))
+    }
+    pub(super) fn control_meta_text_admitted(
+        &self,
+        key: &str,
+        owner: Option<&s_content::capture_allocation::OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Option<crate::v3::business_json::TextValue>, String> {
+        self.forward(|tx| crate::v2::control_meta_text_admitted(tx, key, owner, work))
+    }
+    pub(super) fn control_meta_i64(
+        &self,
+        key: &str,
+        owner: Option<&s_content::capture_allocation::OwnedBudget>,
+    ) -> Result<i64, String> {
+        self.forward(|tx| crate::v2::control_meta_i64(tx, key, owner))
+    }
+    pub(super) fn layout(&self) -> Result<crate::v3::layout::Layout, String> {
+        self.forward(|tx| crate::v3::layout::Layout::of_library(tx))
+    }
+    pub(super) fn publication_projection(
+        &self,
+        store: &crate::v3::audit_store::HashReader<'_>,
+    ) -> Result<crate::content_publication::PublicationProjection<'s, 's>, String> {
+        self.forward(|tx| crate::content_publication::PublicationProjection::new(tx, store))
+    }
+    pub(super) fn resolve_indexed_templates_pending_view(
+        &self,
+        store: &mut (impl crate::v3::audit_store::CodecStore + ?Sized),
+        metadata: crate::content_manifest::MetadataView<'_>,
+        roots: crate::content_manifest::RootsView<'_>,
+        batch_id: &str,
+        previous_frontier: i64,
+    ) -> Result<crate::content_publication::PendingRefTemplates, String> {
+        self.forward(|tx| {
+            crate::content_publication::resolve_indexed_templates_pending_view(
+                tx,
+                store,
+                metadata,
+                roots,
+                batch_id,
+                previous_frontier,
+            )
+        })
+    }
+    pub(super) fn resolve_ordinary_indexed_templates_pending_view(
+        &self,
+        store: &mut crate::v3::audit_store::HashReader<'_>,
+        metadata: crate::content_manifest::MetadataView<'_>,
+        roots: crate::content_manifest::RootsView<'_>,
+        batch_id: &str,
+        previous_frontier: i64,
+        projection: &mut crate::content_publication::PublicationProjection<'_, '_>,
+    ) -> Result<crate::content_publication::PendingRefTemplates, String> {
+        self.forward(|tx| {
+            crate::content_publication::resolve_ordinary_indexed_templates_pending_view(
+                tx,
+                store,
+                metadata,
+                roots,
+                batch_id,
+                previous_frontier,
+                projection,
+            )
+        })
+    }
+    pub(super) fn resolve_native_dual_templates_pending_view(
+        &self,
+        store: &mut crate::v3::audit_store::HashReader<'_>,
+        metadata: crate::content_manifest::MetadataView<'_>,
+        roots: crate::content_manifest::RootsView<'_>,
+        batch: &str,
+        previous: i64,
+        projection: &crate::v3::object_index::NativeCutProjection<'_, '_, '_>,
+    ) -> Result<crate::content_publication::PendingRefTemplates, String> {
+        self.forward(|tx| {
+            crate::content_publication::resolve_native_dual_templates_pending_view(
+                tx, store, metadata, roots, batch, previous, projection,
+            )
+        })
+    }
+    #[cfg(test)]
+    pub(super) fn trace_window(&self, boundary: &'static str, edge: &'static str, ok: bool) {
+        let outcome = match (edge, ok) {
+            ("begin", _) => "pending",
+            (_, true) => "ok",
+            _ => "error",
+        };
+        crate::v3::diagnostic_s4_read_trace::audit_window(self.tx, boundary, edge, outcome);
+    }
+    #[cfg(test)]
+    pub(super) fn trace_begin(&self, boundary: &'static str) {
+        crate::v3::diagnostic_s4_read_trace::begin(self.tx, boundary);
+    }
+    #[cfg(test)]
+    pub(super) fn trace_end<T, E>(&self, boundary: &'static str, result: &Result<T, E>) {
+        crate::v3::diagnostic_s4_read_trace::end(self.tx, boundary, result);
+    }
+}
+
+/// 已核原件表：只收 F 核验通过的 Found；Missing、错误不入表。计入字节 = 正文长度 +
+/// 每条目固定开销，入表前先按剩余额度筛选。
+/// 表只在一个纪元内有效：纪元变化、或任一门不成立，整表作废。
+#[derive(Default)]
+struct SnapshotFrames {
+    epoch: Option<SnapshotEpoch>,
+    frames: std::collections::HashMap<NodeDigest, s_content::job::CheckedFrame>,
+    bytes: usize,
+}
+/// (`SQLITE_FCNTL_DATA_VERSION` of main, `total_changes`)：任一连接提交、或本连接写过
+/// 即推进；用来在第二道防线上识别「事务结束又重开」（ABA）。
+type SnapshotEpoch = [u64; 2];
+const SNAPSHOT_FRAME_BYTES: usize = 128 << 20;
+const SNAPSHOT_FRAME_ENTRIES: usize = 1 << 20;
+const SNAPSHOT_FRAME_OVERHEAD: usize = 96;
+impl SnapshotFrames {
+    fn keep(&mut self, digest: &NodeDigest, frame: &s_content::job::CheckedFrame) {
+        let bytes = frame.body().len() + SNAPSHOT_FRAME_OVERHEAD;
+        if self.frames.len() >= SNAPSHOT_FRAME_ENTRIES
+            || self.bytes.saturating_add(bytes) > SNAPSHOT_FRAME_BYTES
+            || self.frames.contains_key(digest)
+        {
+            return;
+        }
+        // 入表只是尽力而为：内存预留失败就不缓存（下次照常真读），不让分配失败中止进程。
+        let mut body = Vec::new();
+        if body.try_reserve_exact(frame.body().len()).is_err()
+            || self.frames.try_reserve(1).is_err()
+        {
+            return;
+        }
+        body.extend_from_slice(frame.body());
+        if let Ok(copy) = frame.checked_same_material(digest, frame.tag(), body) {
+            self.frames.insert(*digest, copy);
+            self.bytes += bytes;
+        }
+    }
+}
+
 pub(super) struct ReadStore<'a> {
     conn: &'a Connection,
     same_material: Option<SameMaterial>,
+    /// 只有经 [`ReadSnapshot::store`] 取得的读者才有表；作用域外的读者每次真读。
+    frames: Option<&'a std::cell::RefCell<SnapshotFrames>>,
 }
 
 impl<'a> ReadStore<'a> {
@@ -1033,6 +1316,7 @@ impl<'a> ReadStore<'a> {
         Ok(Self {
             conn: tx,
             same_material: None,
+            frames: None,
         })
     }
 
@@ -1040,14 +1324,89 @@ impl<'a> ReadStore<'a> {
     pub(super) fn enable_audit_same_material(&mut self) {
         self.same_material = Some(SameMaterial::default());
     }
-}
 
-impl NodeSource for ReadStore<'_> {
-    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        read_node(self.conn, digest)
+    /// 第二道防线（#1890）：作用域内本无人能改连接，每次取表仍重核；任一门不成立或纪元
+    /// 变化即整表作废，读取与基线一样走 SQL。
+    fn frames(&self) -> Option<std::cell::RefMut<'a, SnapshotFrames>> {
+        let mut frames = self.frames?.borrow_mut();
+        let epoch = self.snapshot_epoch();
+        if epoch.is_none() || frames.epoch != epoch {
+            *frames = SnapshotFrames {
+                epoch,
+                ..SnapshotFrames::default()
+            };
+        }
+        epoch.map(|_| frames)
     }
 
-    fn checked_read(
+    /// 四道门全部成立时给出纪元，否则 None：
+    /// 1. main 已建立读快照（`SQLITE_TXN_READ`）；
+    /// 2. 所有库（含 temp）都不超过 READ，即本事务哪儿都没写过（含 DDL、SAVEPOINT 内写后回滚）；
+    /// 3. temp 里没有遮蔽不带库名 `s_content_nodes` 的同名**表**（ATTACH 排在 main 之后，遮蔽不了）。
+    ///    `sqlite3_table_column_metadata` 对视图直接返回错误，所以这道门看不见 temp **视图**；
+    /// 4. 节点读语句已在本连接预编译，且所有同文副本都未过期（authorizer 更换、schema 变化会令其
+    ///    过期；基线下一次读会重新编译并询问授权器，所以过期时交给真实读取）。temp 视图的遮蔽靠
+    ///    这道门挡住：任何 temp schema 变更都会令本连接全部语句过期。调整本门时须保住这一覆盖。
+    ///
+    /// 全部走 FFI，不执行 SQL，不调用授权器。
+    fn snapshot_epoch(&self) -> Option<SnapshotEpoch> {
+        use rusqlite::ffi;
+        // SAFETY：句柄只在本次调用内借给只读查询（事务状态、表元数据、语句列表与过期标记、
+        // pager 数据版本）；不关闭、不转移、不改连接或语句状态。库名、表名均为以 NUL 结尾的
+        // 静态字面量，表元数据的输出指针全部传空；语句指针经 `sqlite3_next_stmt` 逐个取得、
+        // 当场使用，不保留（本连接单线程使用，期间不会有语句被 finalize）。
+        let db = unsafe { self.conn.handle() };
+        if unsafe { ffi::sqlite3_txn_state(db, c"main".as_ptr()) } != ffi::SQLITE_TXN_READ
+            || unsafe { ffi::sqlite3_txn_state(db, std::ptr::null()) } != ffi::SQLITE_TXN_READ
+        {
+            return None;
+        }
+        let shadowed = unsafe {
+            ffi::sqlite3_table_column_metadata(
+                db,
+                c"temp".as_ptr(),
+                c"s_content_nodes".as_ptr(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        } == ffi::SQLITE_OK;
+        if shadowed {
+            return None;
+        }
+        let mut live = false;
+        let mut stmt = unsafe { ffi::sqlite3_next_stmt(db, std::ptr::null_mut()) };
+        while !stmt.is_null() {
+            let sql = unsafe { ffi::sqlite3_sql(stmt) };
+            if !sql.is_null()
+                && unsafe { std::ffi::CStr::from_ptr(sql) }.to_bytes() == READ_NODE_SQL.as_bytes()
+            {
+                if unsafe { ffi::sqlite3_expired(stmt) } != 0 {
+                    return None;
+                }
+                live = true;
+            }
+            stmt = unsafe { ffi::sqlite3_next_stmt(db, stmt) };
+        }
+        if !live {
+            return None;
+        }
+        let mut version: u32 = 0;
+        let rc = unsafe {
+            ffi::sqlite3_file_control(
+                db,
+                c"main".as_ptr(),
+                ffi::SQLITE_FCNTL_DATA_VERSION,
+                (&mut version as *mut u32).cast(),
+            )
+        };
+        (rc == ffi::SQLITE_OK).then(|| [u64::from(version), self.conn.total_changes()])
+    }
+
+    fn checked_read_sql(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
@@ -1058,6 +1417,39 @@ impl NodeSource for ReadStore<'_> {
             None => Ok(None),
             Some((tag, body)) => material.check(digest, tag, body).map(Some),
         }
+    }
+}
+
+/// 作用域内同一摘要第二次读取交出第一次 F 核验通过的原件，不再发 SQL，但每次重新执行 F
+/// （命中不等于 F 成功）；未命中照旧真读，核验读成功后入表。
+impl NodeSource for ReadStore<'_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        if let Some(frame) = self.frames().as_ref().and_then(|f| f.frames.get(digest)) {
+            let (tag, body) =
+                s_content::job::CheckedFrame::checked(digest, frame.tag(), frame.body().to_vec())?
+                    .into_parts();
+            return Ok(NodeRead::Found { tag, body });
+        }
+        read_node(self.conn, digest)
+    }
+
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        if let Some(frame) = self.frames().as_ref().and_then(|f| f.frames.get(digest)) {
+            return s_content::job::CheckedFrame::checked(
+                digest,
+                frame.tag(),
+                frame.body().to_vec(),
+            )
+            .map(Some);
+        }
+        let frame = self.checked_read_sql(digest)?;
+        if let (Some(frame), Some(mut frames)) = (&frame, self.frames()) {
+            frames.keep(digest, frame);
+        }
+        Ok(frame)
     }
 }
 
@@ -1222,6 +1614,7 @@ mod tests {
         let mut reader = ReadStore {
             conn: &conn,
             same_material: Some(SameMaterial::default()),
+            frames: None,
         };
         assert!(reader.checked_read(&digest).unwrap().is_some());
         external
@@ -1416,6 +1809,314 @@ mod tests {
         )
         .unwrap();
         assert!(store.checked_read(&digest).unwrap().is_none());
+    }
+
+    /// 文件库（WAL）中提交一个节点；返回路径、连接与摘要。
+    fn snapshot_fixture() -> (std::path::PathBuf, Connection, NodeDigest) {
+        let path = std::env::temp_dir().join(format!(
+            "nc-1890-snap-{}-{:?}.sqlite",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let mut conn = Connection::open(&path).unwrap();
+        conn.execute_batch(super::super::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'clock', '{}', 1, 'accept')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL").unwrap();
+        let digest = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        TxStore::new(&tx)
+            .unwrap()
+            .put(digest, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        tx.commit().unwrap();
+        (path, conn, digest)
+    }
+    fn sql_reads_during<T>(f: impl FnOnce() -> T) -> (T, u64) {
+        let before = SQL_READS.with(std::cell::Cell::get);
+        let value = f();
+        (value, SQL_READS.with(std::cell::Cell::get) - before)
+    }
+
+    /// #1890：作用域内同一摘要第二次读不再发 SQL、F 照样重算；同一快照的另一个读者共用
+    /// 原件表；Missing 不入表；作用域外的读者每次真读。
+    #[test]
+    fn read_snapshot_reuses_checked_original_only_inside_scope() {
+        let (path, mut conn, digest) = snapshot_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            let (first, sql) = sql_reads_during(|| reader.checked_read(&digest).unwrap().unwrap());
+            assert_eq!(sql, 1);
+            let frames = s_content::frame_calls_on_thread();
+            let (second, sql) = sql_reads_during(|| reader.checked_read(&digest).unwrap().unwrap());
+            assert_eq!(sql, 0, "同一快照内同一摘要不再发 SQL");
+            assert_eq!(
+                s_content::frame_calls_on_thread() - frames,
+                1,
+                "命中仍重新执行 F"
+            );
+            assert_eq!((first.tag(), first.body()), (second.tag(), second.body()));
+            let found = NodeRead::Found {
+                tag: s_content::tag::BOOL_TRUE,
+                body: Vec::new(),
+            };
+            let mut other = snap.store().unwrap();
+            assert_eq!(
+                sql_reads_during(|| other.read(&digest).unwrap()),
+                (found.clone(), 0)
+            );
+            let missing = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+            for _ in 0..2 {
+                let (read, sql) = sql_reads_during(|| reader.checked_read(&missing).unwrap());
+                assert!(read.is_none());
+                assert_eq!(sql, 1, "Missing 不入表，每次真读");
+            }
+            let mut outside = ReadStore::new(&tx).unwrap();
+            for _ in 0..2 {
+                assert_eq!(
+                    sql_reads_during(|| outside.read(&digest).unwrap()),
+                    (found.clone(), 1)
+                );
+            }
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// 作用域读者先真读一次、再确认第二次已命中（0 次 SQL），保证随后的断言确实在考验表。
+    fn cached(reader: &mut ReadStore<'_>, digest: &NodeDigest) {
+        assert!(reader.checked_read(digest).unwrap().is_some());
+        let (frame, sql) = sql_reads_during(|| reader.checked_read(digest).unwrap());
+        assert!(frame.is_some());
+        assert_eq!(sql, 0, "已入表");
+    }
+
+    /// #1890 第二道防线。作用域代码拿不到事务；以下各测试由测试代码直接操作事务，模拟类型
+    /// 边界被绕过（或事务出错自动回滚），要求表整表作废、读取与基线（每次真读）结果相同。
+    ///
+    /// 审查反例 A：本事务 DELETE（WRITE），以及 SAVEPOINT 内写、读、再 ROLLBACK TO。
+    #[test]
+    fn read_snapshot_frames_drop_on_write_and_savepoint_rollback() {
+        let (path, mut conn, digest) = snapshot_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            cached(&mut reader, &digest);
+            tx.execute_batch("SAVEPOINT snap1890").unwrap();
+            let fresh = s_content::frame(s_content::tag::BOOL_FALSE, &[]);
+            TxStore::new(&tx)
+                .unwrap()
+                .put(fresh, s_content::tag::BOOL_FALSE, &[])
+                .unwrap();
+            assert!(reader.checked_read(&fresh).unwrap().is_some());
+            assert!(reader.checked_read(&fresh).unwrap().is_some());
+            tx.execute_batch("ROLLBACK TO snap1890; RELEASE snap1890")
+                .unwrap();
+            assert!(reader.checked_read(&fresh).unwrap().is_none());
+            assert_eq!(reader.read(&fresh).unwrap(), NodeRead::Missing);
+            tx.execute(
+                "DELETE FROM s_content_nodes WHERE digest=?1",
+                params![&digest[..]],
+            )
+            .unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_none());
+            assert_eq!(reader.read(&digest).unwrap(), NodeRead::Missing);
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// 审查反例 B：入表后 DROP TABLE，必须与基线一样报 SOURCE。
+    #[test]
+    fn read_snapshot_frames_do_not_hide_dropped_table() {
+        let (path, mut conn, digest) = snapshot_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            cached(&mut reader, &digest);
+            tx.execute_batch("DROP TABLE s_content_nodes").unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::SOURCE
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::SOURCE);
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// 审查反例 C（ABA）：经 SQL 结束事务，另一连接提交改写，再 BEGIN；新事务读前（NONE）
+    /// 与读后（READ）都必须看见改写并报 NODE_DIGEST。改回原样后重新入表照常。
+    #[test]
+    fn read_snapshot_frames_do_not_revive_across_transaction_restart() {
+        let (path, mut conn, digest) = snapshot_fixture();
+        let external = Connection::open(&path).unwrap();
+        let set_body = |body: &[u8]| {
+            external
+                .execute(
+                    "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                    params![body, &digest[..]],
+                )
+                .unwrap();
+        };
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            cached(&mut reader, &digest);
+            set_body(&[1]);
+            assert!(
+                reader.checked_read(&digest).unwrap().is_some(),
+                "读快照内外部提交不可见"
+            );
+            tx.execute_batch("COMMIT; BEGIN").unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            tx.execute_batch("COMMIT").unwrap();
+            set_body(&[]);
+            tx.execute_batch("BEGIN").unwrap();
+            cached(&mut reader, &digest);
+            tx.execute_batch("COMMIT").unwrap();
+            set_body(&[1]);
+            tx.execute_batch("BEGIN").unwrap();
+            let _: i64 = tx
+                .query_row("SELECT count(*) FROM s_protocol_meta", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::NODE_DIGEST);
+        }
+        drop(external);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// 复审反例 D/E/F：TEMP 同名表或视图遮蔽不带库名的 `s_content_nodes`，事务内新建（temp
+    /// 写过）或事务之间在 autocommit 下新建再进入 READ，都必须与基线一样读 temp（这里为空）。
+    /// temp 表由门 3 挡住；temp 视图由门 4 挡住（temp schema 变更令全部语句过期）。
+    #[test]
+    fn read_snapshot_frames_do_not_survive_temp_shadow() {
+        for ddl in [
+            "CREATE TEMP TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER NOT NULL, body BLOB NOT NULL)",
+            "CREATE TEMP VIEW s_content_nodes AS SELECT * FROM main.s_content_nodes WHERE 0",
+        ] {
+            for between_transactions in [false, true] {
+                let (path, mut conn, digest) = snapshot_fixture();
+                {
+                    let tx = conn.transaction().unwrap();
+                    let snap = ReadSnapshot::new(&tx);
+                    let mut reader = snap.store().unwrap();
+                    cached(&mut reader, &digest);
+                    if between_transactions {
+                        tx.execute_batch("COMMIT").unwrap();
+                        tx.execute_batch(ddl).unwrap();
+                        tx.execute_batch("BEGIN").unwrap();
+                        let _: i64 = tx
+                            .query_row("SELECT count(*) FROM s_protocol_meta", [], |r| r.get(0))
+                            .unwrap();
+                    } else {
+                        tx.execute_batch(ddl).unwrap();
+                    }
+                    assert!(
+                        reader.checked_read(&digest).unwrap().is_none(),
+                        "{ddl} between={between_transactions}"
+                    );
+                    assert_eq!(reader.read(&digest).unwrap(), NodeRead::Missing);
+                }
+                drop(conn);
+                std::fs::remove_file(path).unwrap();
+            }
+        }
+    }
+
+    /// 复审反例 G：新事务只读 temp（main 为 NONE），期间另一连接提交改写；不得复用，必须与
+    /// 基线一样读到新正文并报 NODE_DIGEST。
+    #[test]
+    fn read_snapshot_frames_require_main_snapshot_not_just_temp_read() {
+        let (path, mut conn, digest) = snapshot_fixture();
+        conn.execute_batch("CREATE TEMP TABLE t1890(x)").unwrap();
+        let external = Connection::open(&path).unwrap();
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            cached(&mut reader, &digest);
+            tx.execute_batch("COMMIT").unwrap();
+            external
+                .execute(
+                    "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+                    params![&digest[..]],
+                )
+                .unwrap();
+            tx.execute_batch("BEGIN").unwrap();
+            let _: i64 = tx
+                .query_row("SELECT count(*) FROM temp.t1890", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+        }
+        drop(external);
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// 复审反例 H：入表后换成拒绝一切的 authorizer（节点读语句随之过期），必须与基线一样在
+    /// 重新编译时被拒（SOURCE）；撤销后照旧读到。门本身只走 FFI，不调用授权器。
+    #[test]
+    fn read_snapshot_frames_do_not_hide_authorizer_change() {
+        use rusqlite::hooks::{AuthContext, Authorization};
+        let (path, mut conn, digest) = snapshot_fixture();
+        {
+            let tx = conn.transaction().unwrap();
+            let snap = ReadSnapshot::new(&tx);
+            let mut reader = snap.store().unwrap();
+            cached(&mut reader, &digest);
+            let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let seen = calls.clone();
+            tx.authorizer(Some(move |_: AuthContext<'_>| {
+                seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Authorization::Allow
+            }))
+            .unwrap();
+            assert_eq!(reader.snapshot_epoch(), None, "authorizer 更换令读语句过期");
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            let asked = calls.load(std::sync::atomic::Ordering::SeqCst);
+            assert!(asked > 0, "重新编译读语句询问了授权器");
+            cached(&mut reader, &digest);
+            assert!(reader.snapshot_epoch().is_some());
+            assert_eq!(
+                calls.load(std::sync::atomic::Ordering::SeqCst),
+                asked,
+                "门与命中都不调用授权器"
+            );
+            tx.authorizer(Some(|_: AuthContext<'_>| Authorization::Deny))
+                .unwrap();
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                code::SOURCE
+            );
+            assert_eq!(reader.read(&digest).unwrap_err().code(), code::SOURCE);
+            tx.authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+                .unwrap();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+        }
+        drop(conn);
+        std::fs::remove_file(path).unwrap();
     }
 
     // 使用 S 的实际协议元数据表形状；本夹具只证明节点存储，不证明完整 clock/session 初始化。

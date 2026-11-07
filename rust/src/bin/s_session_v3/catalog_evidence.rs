@@ -22,6 +22,7 @@
 
 use super::audit_store::{CodecRead, CodecStore, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
+use crate::content_store::{ReadSnapshot, SnapshotQuery};
 #[cfg_attr(
     not(test),
     allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
@@ -796,21 +797,25 @@ pub(super) fn verify_current(
     store: &mut dyn NodeStore,
     axes: &ContentRef,
 ) -> Result<(), String> {
-    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
+    verify_current_in_store(
+        &ReadSnapshot::new(tx),
+        &mut super::audit_store::StoreView::generic(store),
+        axes,
+    )
 }
 pub(super) fn verify_current_for_audit<'r>(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     store: &mut super::history::HashReader<'_>,
     axes: impl Into<sc::RefView<'r>>,
 ) -> Result<(), String> {
     verify_current_in_store(
-        tx,
+        snap,
         &mut super::audit_store::StoreView::for_audit(store),
         axes.into(),
     )
 }
 fn verify_current_in_store<'r>(
-    tx: &Transaction<'_>,
+    snap: &ReadSnapshot<'_>,
     store: &mut super::audit_store::StoreView<'_, '_>,
     axes: impl Into<sc::RefView<'r>>,
 ) -> Result<(), String> {
@@ -818,9 +823,9 @@ fn verify_current_in_store<'r>(
     let budget = store.allocation_budget();
     for entry in &entries {
         let read_error = |e| err(format!("读 catalog[{}] 失败：{e}", entry.id));
-        let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-            tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
-        ).map_err(|e| read_error(e.to_string()))?;
+        let mut query = snap
+            .prepare(SnapshotQuery::CATALOG_ROW)
+            .map_err(|e| read_error(e.to_string()))?;
         query
             .bind_text(1, entry.id)
             .map_err(|e| read_error(e.to_string()))?;
@@ -1121,7 +1126,7 @@ mod owned_catalog_temp_tests {
                     assert!(matches!(&e.run_status, TextValue::Owned(_)));
                     assert!(matches!(&e.evidence, RefValue::Owned(_)));
                 }
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&ReadSnapshot::new(&tx), store, axes.view()).unwrap();
                 let axis = field_ref(store, axes.view(), "CC-001").unwrap();
                 let retained = budget.snapshot().live_requested_layout_bytes;
                 assert!(retained > capture_live);
@@ -1139,7 +1144,7 @@ mod owned_catalog_temp_tests {
                 assert_eq!(entries[0].evidence.digest().unwrap(), expected[0].4);
                 drop(ballast);
                 assert_eq!(budget.snapshot().live_requested_layout_bytes, retained);
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&ReadSnapshot::new(&tx), store, axes.view()).unwrap();
             },
         );
         drop(capture);
