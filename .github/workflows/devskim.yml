@@ -66,7 +66,7 @@ jobs:
             devskim-scanner:1.0.90 \
             /workspace \
             /workspace/devskim-results.sarif \
-            "**/.git/**,**/bin/**,**/.chanlun/block-topology/concept_registry.json,**/.chanlun/block-topology/morse_landscape.json,**/.chanlun/block-topology/meta.json,**/.chanlun/concept_registry.json,**/topological-computation/experiment_long_run_2000.json,**/topological-computation/experiment_real_result.json,**/topological-computation/experiment_f_criterion_2000.json,**/topological-computation/signifier_net/.dialogue_ingest_state.json,**/skills-lock.json,**/chanlun/review-results/treasury-reverify-t1-armR-trades-golden-20260727.json,**/tmp/**,**/.claude/skills/brainstorming/**,**/.agents/skills/diagnosing-bugs/**,**/.claude/skills/diagnosing-bugs/**"
+            "**/.git/**,**/bin/**,**/.chanlun/block-topology/concept_registry.json,**/.chanlun/block-topology/morse_landscape.json,**/.chanlun/block-topology/meta.json,**/.chanlun/concept_registry.json,**/skills-lock.json,**/chanlun/review-results/treasury-reverify-t1-armR-trades-golden-20260727.json,**/tmp/**,**/.claude/skills/brainstorming/**,**/.agents/skills/diagnosing-bugs/**,**/.claude/skills/diagnosing-bugs/**"
 
       - name: Upload DevSkim SARIF as an ordinary Actions artifact
         id: upload_devskim_artifact

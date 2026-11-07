@@ -89,7 +89,7 @@ fi
 #   Exit codes: 0=L1(继续), 1=L2/L3(已发送,应挂起), 2=L2/L3(发送失败)
 #   配置: ~/.openclaw/openclaw.json → escalate.target_conversation
 #
-# 未实装的缺口（详见 topological-computation/docs/escalate-integration-gaps.md）：
+# 未实装的缺口（原详述文档随 topological-computation/ 整体出仓，slim/out-of-repo-batch2 已归档）：
 #   - 回复路由：escalate 回复如何持久化并路由回挂起的工位
 #   - 工位挂起：hook exit code 1 → ceremony lead 调用 suspend 的集成
 #   - 超时策略：发送超时/回复超时的降级行为
