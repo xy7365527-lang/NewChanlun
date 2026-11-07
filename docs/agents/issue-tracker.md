@@ -19,7 +19,7 @@ Git 线名分与基线以 [`generation-constitution.md` §2](generation-constitu
 
 ## 开 PR 前的证据
 
-沿用 pstack、Matt 和 Deep Agents 的既有作者流程，按根 [REVIEW.md](../../REVIEW.md) 完成可运行验证与 fresh-context 非作者独审。PR 正文采用 [测试、风险与回滚模板](../../.github/pull_request_template.md)；用 CLI 创建时也保留这三项。未完成独审的候选先交协调者，不以作者自审代替。
+沿用 pstack、Matt 和 Deep Agents 的既有作者流程，按根 [REVIEW.md](../../REVIEW.md) 前置可运行验证，并尽早安排 fresh-context 非作者独审；需要 PR 的入口可先开 draft，有效独审不重复。PR 采用 [测试、风险与回滚模板](../../.github/pull_request_template.md)；CLI 或自动创建的 PR 可链接同等交付证据，不因缺模板标题重做验证。未完成独审不得合入。
 
 ## Pull requests as a triage surface
 
