@@ -42,8 +42,10 @@ from .github_app import (
 )
 from .run import DEFAULT_HOME, SOURCE_REPO, _ps_rows, supervisor_alive
 
-MODELS = ("gpt-6.1-sol", "claude-opus-5-5")
-POLICY = "external-pr-v1"
+# Codex 上游额度耗尽期间的临时组合（EXTERNAL-REVIEW.md「Codex 额度耗尽时的临时组合」）；
+# 常规组合为 ("gpt-6.1-sol", "claude-opus-5-5") 与 POLICY "external-pr-v1"。两位须属不同家族。
+MODELS = ("kimi-k3.1-pro", "claude-opus-5-5")
+POLICY = "external-pr-v1-kimi"
 CONTEXT = "deepagents/review"
 TOKEN_PERMISSIONS = {"metadata": "read", "contents": "read", "pull_requests": "read", "statuses": "write"}
 STATE_ROOT = DEFAULT_HOME / "external-review"
@@ -510,9 +512,17 @@ class ExternalReview:
                                 f"{volume} 可用 {available} bytes；未登记 attempt，未启动模型")
 
     @staticmethod
-    def _dispatched_unfinished(folder: Path) -> list[str]:
+    def _reviewers(folder: Path) -> list[str]:
+        """run 目录下的全部 reviewer：当前 MODELS 加上目录里实有的 worker。换过审查员组合后，
+        旧 run 里已退役 reviewer 的派发与 BLOCK 证据仍要算进完结与否决判断。"""
+        present = {p.name for p in folder.iterdir() if p.name != "effects" and p.is_dir()} if folder.is_dir() else set()
+        return [*MODELS, *sorted(present - set(MODELS))]
+
+    @classmethod
+    def _dispatched_unfinished(cls, folder: Path) -> list[str]:
         """已派发（有 launch.json）却还没有回执的 reviewer。只做过 prepare、从未派发的不算。"""
-        return [m for m in MODELS if (folder / m / "launch.json").exists() and not (folder / m / "receipt.json").exists()]
+        return [m for m in cls._reviewers(folder)
+                if (folder / m / "launch.json").exists() and not (folder / m / "receipt.json").exists()]
 
     def _settled(self, row: dict) -> bool:
         """可参与沿用判断的完结 run：顶层 outcome 存在，且所有已派发 reviewer 都有可读回执（证据完整）。
@@ -523,7 +533,7 @@ class ExternalReview:
         if self._dispatched_unfinished(folder):
             return False
         try:
-            for model in MODELS:
+            for model in self._reviewers(folder):
                 if (folder / model / "receipt.json").exists():
                     _read(folder / model / "receipt.json")
         except (OSError, ValueError, IdentityError):
@@ -537,7 +547,7 @@ class ExternalReview:
         if saved.get("verdict") == "BLOCK" or any(r.get("verdict") == "BLOCK" for r in saved.get("reviews", [])):
             return True
         folder = self.state_root / "runs" / ReviewTarget(**row["target"]).key
-        for model in MODELS:
+        for model in self._reviewers(folder):
             worker = folder / model
             try:
                 receipt = _read(worker / "receipt.json") if (worker / "receipt.json").exists() else {}

@@ -27,12 +27,17 @@ import tomllib
 
 # 与 pilot1742.external_review.SPACE_RESERVE 相同；预检不导入控制器，避免改变其加载面。
 SPACE_RESERVE = 256 * 1024 * 1024
-MODELS = ("gpt-6.1-sol", "claude-opus-5-5")
+# 与 pilot1742.external_review.MODELS 相同（测试核对）。
+MODELS = ("kimi-k3.1-pro", "claude-opus-5-5")
 CLIPROXY_LOG_DIR = Path.home() / "Library/Application Support/CLIProxyLocal/auth/logs"
-# 正式路线：Sol 走 Codex OAuth（chatgpt.com），Opus 走 Claude OAuth（api.anthropic.com）。
-ROUTES = {"gpt-6.1-sol": ("codex", "chatgpt.com"), "claude-opus-5-5": ("claude", "api.anthropic.com")}
+# 每个模型可接受的上游路线。Sol 走 Codex OAuth（chatgpt.com）；Kimi 走国内 kimi（api.kimi.com）或国际 kimi-ai
+# （api.kimi.ai），CLIProxy 在两者间按同型号候选池切换（CLIProxyLocal ROUTING-KIMI-1696.md）；Opus 走 Claude OAuth。
+ROUTES = {"gpt-6.1-sol": {("codex", "chatgpt.com")},
+          "kimi-k3.1-pro": {("kimi", "api.kimi.com"), ("kimi-ai", "api.kimi.ai")},
+          "claude-opus-5-5": {("claude", "api.anthropic.com")}}
 # 报告里只回显这些已知路由，其余记作 "other"：日志字段来自上游，不能原样进报告
-KNOWN_ROUTES = {*ROUTES.values(), ("antigravity", "daily-cloudcode-pa.googleapis.com")}
+KNOWN_ROUTES = {*(route for routes in ROUTES.values() for route in routes),
+                ("antigravity", "daily-cloudcode-pa.googleapis.com")}
 PROVIDER = "cliproxy-local"
 SCRUBBED_ENV = "CLIPROXY_LOCAL_KEY"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
@@ -435,8 +440,8 @@ def probe_model(args, model: str, key: str, deadline: Deadline) -> list[dict]:
     wait = max(0.0, deadline.work_left() - 0.25) if trip["ok"] else 0.3
     attempts = route_from_log(Path(args.proxy_log_dir), session, since, wait)
     expected = ROUTES[model]
-    return [{"name": f"route:{model}", "class": "route", "ok": bool(attempts) and all(a == expected for a in attempts),
-             "detail": {"expected": "@".join(expected), "actual": [f"{p}@{h}" if (p, h) in KNOWN_ROUTES else "other" for p, h in attempts or []],
+    return [{"name": f"route:{model}", "class": "route", "ok": bool(attempts) and all(a in expected for a in attempts),
+             "detail": {"expected": sorted("@".join(route) for route in expected), "actual": [f"{p}@{h}" if (p, h) in KNOWN_ROUTES else "other" for p, h in attempts or []],
                         "log_found": attempts is not None, "session": session}},
             {"name": f"roundtrip:{model}", "class": "roundtrip", "ok": trip["ok"], "detail": trip}]
 
