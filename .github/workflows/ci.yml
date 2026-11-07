@@ -707,8 +707,9 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: ${{ matrix.features }}
-      # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
-      CI_1488_TEST_JOBS: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '4' || '1' }}
+      # #1875：具名锁 4 路并行（run-1488-delta-ci.py 每条仍是独立进程、--exact，逐条核对哈希与日志、结果按计划顺序）。
+      #   托管 runner 也取 4，与同类 4 核托管机上 extras 的 RUST_TEST_THREADS=4 同口径；串行时 A/B/C 锁曾是托管路径的关键路径（run 42373511176：22.1 min）。
+      CI_1488_TEST_JOBS: "4"
     defaults:
       run:
         shell: bash
@@ -940,8 +941,9 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       FEATURES: s_session,s_capture_native_testonly
-      # #1875：具名锁在 Boat 上 4 路并行（run-1488-delta-ci.py 每条仍是独立进程 --exact）；托管 runner 保持 1 路串行。
-      CI_1488_TEST_JOBS: ${{ (vars.CI_BOAT_RUNNERS != 'off' && github.actor == 'xy7365527-lang' && github.triggering_actor == 'xy7365527-lang' && (github.event_name != 'pull_request' || github.event.pull_request.user.login == 'xy7365527-lang')) && '4' || '1' }}
+      # #1875：具名锁 4 路并行（run-1488-delta-ci.py 每条仍是独立进程、--exact，逐条核对哈希与日志、结果按计划顺序）。
+      #   托管 runner 也取 4，与同类 4 核托管机上 extras 的 RUST_TEST_THREADS=4 同口径；串行时 A/B/C 锁曾是托管路径的关键路径（run 42373511176：22.1 min）。
+      CI_1488_TEST_JOBS: "4"
     defaults:
       run:
         shell: bash
