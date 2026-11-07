@@ -1063,3 +1063,92 @@ def test_registration_waits_for_inflight_reuse_publication(lane, env, monkeypatc
     result = lane.review_pr(1810)
     publishing.thread.join(30)
     assert "reused_from" in result and registered["at"] >= registered["published"] - 0.05
+
+def _auth_broken(lane, monkeypatch, broken):
+    real = lane.gateway.get_pr
+    def get_pr(number):
+        if broken["on"]:
+            raise IdentityError("GitHub 返回 HTTP 401，未切换凭据来源")
+        return real(number)
+    monkeypatch.setattr(lane.gateway, "get_pr", get_pr)
+
+
+def test_auth_failure_before_final_publish_is_pending_not_stale(lane, monkeypatch):
+    """#1938 run 63919f86：双 PASS 后发布前预检 401，不得记 STALE；认证恢复后同 attempt 重跑补发，不重跑模型。"""
+    broken = {"on": False}
+    _auth_broken(lane, monkeypatch, broken)
+    real_publish = module.StatusPublisher.publish
+    def publish(self, state, *args):
+        if state == "success" and not broken.get("done"):
+            broken["on"] = broken["done"] = True  # 只在第一次发布 success 前断开认证
+        return real_publish(self, state, *args)
+    monkeypatch.setattr(module.StatusPublisher, "publish", publish)
+    with pytest.raises(EffectPending, match="未判定漂移"):
+        lane.review_pr(1810)
+    target = ReviewTarget(**json.loads(next((lane.state_root / "runs").glob("*/target.json")).read_text()))
+    saved = json.loads((lane.state_root / "runs" / target.key / "outcome.json").read_text())
+    assert saved["verdict"] == "PASS" and "publication" not in saved
+    broken["on"] = False
+    launches = (lane.state_root / "runs" / "launches").read_text()
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and result["publication"]["state"] == "success"
+    assert (lane.state_root / "runs" / "launches").read_text() == launches  # 没有重跑模型
+    assert lane.gateway.sent[-1] == "success"
+
+
+def _legacy_auth_stale(lane):
+    """构造旧版本留下的形状：双审完整，发布前 401 被记为 STALE，只发过 pending。"""
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key
+    saved = json.loads((folder / "outcome.json").read_text())
+    saved.pop("publication")
+    saved.update(verdict="STALE", reason="GitHub 返回 HTTP 401，未切换凭据来源")
+    (folder / "outcome.json").write_text(json.dumps(saved))
+    (folder / "outcome.json").chmod(0o600)
+    lane.gateway.rows = [r for r in lane.gateway.rows if r["state"] != "success"]
+    (folder / "effects" / "status-success.json").unlink()  # 原件 effects 只有 status-pending
+    return folder
+
+
+def test_legacy_auth_stale_is_recovered_by_same_attempt_without_rerunning_models(lane):
+    folder = _legacy_auth_stale(lane)
+    launches = (lane.state_root / "runs" / "launches").read_text()
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS" and result["publication"]["state"] == "success"
+    assert result["recovered_from_stale"]["reason"].startswith("GitHub 返回 HTTP 401")
+    history = json.loads((folder / result["recovered_from_stale"]["history"]).read_text())
+    assert history["verdict"] == "STALE"  # 原失败记录保留
+    assert (lane.state_root / "runs" / "launches").read_text() == launches
+
+
+def test_legacy_auth_stale_is_not_recovered_after_real_drift(lane):
+    _legacy_auth_stale(lane)
+    (lane.source / "changed-1").write_text("pushed\n")
+    git(lane.source, "commit", "-qam", "push")
+    lane.gateway.pr["head"]["sha"] = git(lane.source, "rev-parse", "HEAD")
+    sent = list(lane.gateway.sent)
+    assert lane.review_pr(1810, 1)["verdict"] in ("STALE", "PASS")  # 新 head 是另一个 run 键
+    old = [r for r in lane.status(1810) if r["outcome"] and r["outcome"]["verdict"] == "STALE"]
+    assert old and all("recovered_from_stale" not in r["outcome"] for r in old)
+    assert sent == lane.gateway.sent[:len(sent)]
+
+
+def test_legacy_auth_stale_with_tampered_receipt_is_not_recovered(lane):
+    folder = _legacy_auth_stale(lane)
+    receipt = json.loads((folder / MODELS[0] / "receipt.json").read_text())
+    receipt["exit_code"] = 1
+    (folder / MODELS[0] / "receipt.json").write_text(json.dumps(receipt))
+    (folder / MODELS[0] / "receipt.json").chmod(0o600)
+    sent = list(lane.gateway.sent)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "STALE" and "recovered_from_stale" not in result
+    assert lane.gateway.sent == sent
+
+
+def test_real_drift_stale_is_left_alone(lane):
+    folder = _legacy_auth_stale(lane)
+    saved = json.loads((folder / "outcome.json").read_text())
+    saved["reason"] = "PR base、head 或目标已漂移"
+    (folder / "outcome.json").write_text(json.dumps(saved))
+    assert lane.review_pr(1810)["verdict"] == "STALE"

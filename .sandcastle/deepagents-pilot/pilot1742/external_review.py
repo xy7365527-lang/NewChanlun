@@ -35,7 +35,13 @@ from typing import Any
 
 from .delivery import EffectPending, Journal, RepoGateway, Stale
 from .domain import parse_sha
-from .github_app import AppIdentity, GitHubAppClient, IdentityError
+from .github_app import (
+    AppIdentity,
+    GitHubAppClient,
+    IdentityError,
+    OutcomeUnknown,
+    RequestNotSent,
+)
 from .run import DEFAULT_HOME, SOURCE_REPO, _ps_rows, supervisor_alive
 
 MODELS = ("gpt-6.1-sol", "claude-opus-5-5")
@@ -195,9 +201,11 @@ def _git(root: Path, *args: str, data: bytes | None = None) -> bytes:
                           check=True, capture_output=True).stdout
 
 
-def check_controller(expected: str | None = None) -> str:
-    head = _git(SOURCE_REPO, "rev-parse", "HEAD").decode().strip()
-    if _git(SOURCE_REPO, "status", "--porcelain", "--", ".sandcastle").strip():
+def check_controller(expected: str | None = None, source: Path | None = None) -> str:
+    """HOST controller 的代码 head；source 默认是本模块所在仓库，受管恢复可指向 HOST 仓库。"""
+    source = source or SOURCE_REPO
+    head = _git(source, "rev-parse", "HEAD").decode().strip()
+    if _git(source, "status", "--porcelain", "--", ".sandcastle").strip():
         raise IdentityError("controller .sandcastle 有未提交改动")
     if expected is not None and head != expected:
         raise IdentityError("controller 代码 head 已漂移")
@@ -364,15 +372,26 @@ def validate_review(target: ReviewTarget, launch: dict, receipt: dict, folder: P
         return failed("缺日志、解析失败或日志不符")
 
 
+def _transport_failure(error: BaseException | str) -> bool:
+    """GitHub 读写的认证或传输失败（连接、5xx、非 2xx 如 401/403/404），不是 PR 或 controller 漂移。"""
+    if isinstance(error, (RequestNotSent, OutcomeUnknown)):
+        return True
+    return str(error).startswith(("GitHub 返回 HTTP", "GitHub 请求失败"))
+
+
 class StatusPublisher:
-    def __init__(self, gateway: RepoGateway, target: ReviewTarget, folder: Path, locks: Path):
-        self.gateway, self.target, self.folder, self.locks = gateway, target, folder, locks
+    def __init__(self, gateway: RepoGateway, target: ReviewTarget, folder: Path, locks: Path,
+                 source: Path | None = None):
+        self.gateway, self.target, self.folder, self.locks, self.source = gateway, target, folder, locks, source
 
     def check_current(self) -> None:
         try:
-            check_controller(self.target.controller_code_head)
+            check_controller(self.target.controller_code_head, self.source)
             current = load_target(self.gateway, self.target.pr_number)
         except IdentityError as error:
+            if _transport_failure(error):
+                # 读不到不等于漂移：不写 STALE，已保存的结论留待认证恢复后同 attempt 重跑补发（不重跑模型）。
+                raise EffectPending(f"{error}；未判定漂移，认证恢复后用同一 attempt 重跑以重验并补发") from error
             raise Stale(str(error)) from error
         if any(getattr(self.target, key) != value for key, value in current.items()):
             raise Stale("PR base、head 或目标已漂移")
@@ -419,8 +438,8 @@ class ExternalReview:
                  checkout_root: Path = CHECKOUT_ROOT, source: Path = SOURCE_REPO,
                  launcher: list[str] | None = None, poll_seconds: float = 1):
         self.gateway, self.state_root, self.checkout_root, self.source = gateway, state_root, checkout_root, source
-        self.launcher = launcher or [str(SOURCE_REPO / "node_modules" / ".bin" / "tsx"),
-                                     str(SOURCE_REPO / ".sandcastle" / "external-review-worker.mts")]
+        self.launcher = launcher or [str(source / "node_modules" / ".bin" / "tsx"),
+                                     str(source / ".sandcastle" / "external-review-worker.mts")]
         self.poll_seconds = poll_seconds
         self._stop = threading.Event()
 
@@ -438,7 +457,7 @@ class ExternalReview:
             patch = patch_identity(self.source, merge_base[0], data["head_sha"])
         except subprocess.CalledProcessError:
             raise IdentityError("needs_source_sync") from None
-        head = check_controller()
+        head = check_controller(source=self.source)
         target = ReviewTarget(**data, merge_base_sha=str(parse_sha(merge_base[0])), run_id=str(uuid.uuid4()),
                               attempt=attempt, policy_version=POLICY, controller_code_head=head,
                               registered_at_ns=time.time_ns(), patch_id=patch, review_contract=REVIEW_CONTRACT)
@@ -763,12 +782,14 @@ class ExternalReview:
         assert self.gateway is not None
         folder = self.state_root / "runs" / target.key
         with _lock(folder):
-            publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks")
+            publisher = StatusPublisher(self.gateway, target, folder, self.state_root / "status-locks", self.source)
             try:
                 publisher.check_current()
                 if (folder / "outcome.json").exists():
                     saved = _read(folder / "outcome.json")
                     if saved["verdict"] == "STALE":
+                        if _transport_failure(saved.get("reason", "")):
+                            return self.recover_stale(target, folder, publisher, saved)
                         return saved
                     reused = (saved.get("reused_from") or {}).get("run_id")
                     saved["publication"] = publisher.publish(saved["state"], reused)
@@ -816,6 +837,39 @@ class ExternalReview:
                 if run_checkouts.is_dir() and not run_checkouts.is_symlink() and not any(run_checkouts.iterdir()):
                     run_checkouts.rmdir()
 
+    def recover_stale(self, target: ReviewTarget, folder: Path, publisher: StatusPublisher, saved: dict) -> dict:
+        """受管恢复：旧版本把 GitHub 认证/传输失败误记为 STALE（双审完整却没发布终态）。
+        不重跑模型、不改旧记录：确认 PR 与 controller 仍是冻结目标，逐个重验已有回执且与原记录一致，
+        原 STALE 记录另存为历史，再发布终态。任何一项不满足就原样返回 STALE。"""
+        try:
+            publisher.check_current()  # 精确 head、base、目标与 controller；认证仍坏会上抛 EffectPending
+        except Stale:
+            return saved
+        recorded = [(r.get("model"), r.get("verdict")) for r in saved.get("reviews", [])]
+        outcomes = []
+        for model in MODELS:
+            worker = folder / model
+            if not (worker / "launch.json").exists() or not (worker / "receipt.json").exists():
+                return saved
+            outcomes.append(validate_review(target, _read(worker / "launch.json"), _read(worker / "receipt.json"), worker))
+        if [(o.model, o.verdict) for o in outcomes] != recorded:
+            return saved
+        sessions = [o.session_id for o in outcomes if o.session_id]
+        if len(sessions) != len(set(sessions)):
+            return saved
+        verdict = ("FAILED" if any(o.verdict == "FAILED" for o in outcomes) else
+                   "BLOCK" if any(o.verdict == "BLOCK" for o in outcomes) else "PASS")
+        state = {"PASS": "success", "BLOCK": "failure", "FAILED": "error"}[verdict]
+        history = f"outcome.stale-{time.time_ns()}.json"
+        _save(folder / history, saved)
+        result = {"run_id": target.run_id, "verdict": verdict, "state": state, "target": asdict(target),
+                  "reviews": [asdict(o) for o in outcomes],
+                  "recovered_from_stale": {"reason": saved.get("reason"), "history": history}}
+        _save(folder / "outcome.json", result)
+        result["publication"] = publisher.publish(state)
+        _save(folder / "outcome.json", result)
+        return result
+
     def status(self, number: int) -> list[dict]:
         if number <= 0:
             raise ValueError("PR 号必须是正整数")
@@ -852,6 +906,8 @@ def main(argv: list[str] | None = None) -> int:
     review.add_argument("--pr", required=True, type=_positive)
     review.add_argument("--attempt", type=_positive, default=1)
     review.add_argument("--private-key", required=True, type=Path)
+    review.add_argument("--source", type=Path, default=None,
+                        help="HOST 仓库路径（受管恢复从另一检出运行时，controller 按它核对）")
     status_cmd = sub.add_parser("status")
     status_cmd.add_argument("--pr", required=True, type=_positive)
     reconcile = sub.add_parser("reconcile")
@@ -865,7 +921,8 @@ def main(argv: list[str] | None = None) -> int:
                                    "newchanlun-deepagents-1742", args.private_key)
             with GitHubAppClient(identity, permissions=TOKEN_PERMISSIONS) as client:
                 client.verify()
-                result = ExternalReview(RepoGateway(client)).review_pr(args.pr, args.attempt)
+                lane = ExternalReview(RepoGateway(client), source=args.source or SOURCE_REPO)
+                result = lane.review_pr(args.pr, args.attempt)
         else:
             lane = ExternalReview(None)  # 本地 status、对账不获取或读取任何凭据。
             result = lane.status(args.pr) if args.command == "status" else lane.reconcile(args.run_id, args.note)
