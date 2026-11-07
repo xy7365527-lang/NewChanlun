@@ -1134,9 +1134,36 @@ impl<'s> ReadSnapshot<'s> {
             frames: Some(&self.frames),
         })
     }
-    // 以下只转发既有的只读读取函数。
+    /// 以下只转发既有的只读读取函数，全部经这里。测试构建下断言被转发的读取既没写库
+    /// （`total_changes` 不变），也没把事务升级到 READ 以上；将来有人在这些函数体里加写，
+    /// 先挂的是单测，而不是只剩运行时门默默作废缓存、速度退回基线。
+    fn forward<T>(&self, read: impl FnOnce(&'s Transaction<'s>) -> T) -> T {
+        #[cfg(test)]
+        let before = (self.tx.total_changes(), Self::txn_state(self.tx));
+        let out = read(self.tx);
+        #[cfg(test)]
+        {
+            assert_eq!(
+                self.tx.total_changes(),
+                before.0,
+                "ReadSnapshot 转发的读取写了库"
+            );
+            let after = Self::txn_state(self.tx);
+            assert!(
+                after <= before.1.max(rusqlite::ffi::SQLITE_TXN_READ),
+                "ReadSnapshot 转发的读取把事务升级到了 READ 以上：{} → {after}",
+                before.1
+            );
+        }
+        out
+    }
+    #[cfg(test)]
+    fn txn_state(tx: &Transaction<'_>) -> i32 {
+        // SAFETY：只读查询本连接所有库的事务状态，不改连接或语句状态。
+        unsafe { rusqlite::ffi::sqlite3_txn_state(tx.handle(), std::ptr::null()) }
+    }
     pub(super) fn verify_required_meta(&self) -> Result<i64, String> {
-        crate::verify_required_meta(self.tx)
+        self.forward(|tx| crate::verify_required_meta(tx))
     }
     pub(super) fn control_meta_text_admitted(
         &self,
@@ -1144,23 +1171,23 @@ impl<'s> ReadSnapshot<'s> {
         owner: Option<&s_content::capture_allocation::OwnedBudget>,
         work: Option<&WorkScope>,
     ) -> Result<Option<crate::v3::business_json::TextValue>, String> {
-        crate::v2::control_meta_text_admitted(self.tx, key, owner, work)
+        self.forward(|tx| crate::v2::control_meta_text_admitted(tx, key, owner, work))
     }
     pub(super) fn control_meta_i64(
         &self,
         key: &str,
         owner: Option<&s_content::capture_allocation::OwnedBudget>,
     ) -> Result<i64, String> {
-        crate::v2::control_meta_i64(self.tx, key, owner)
+        self.forward(|tx| crate::v2::control_meta_i64(tx, key, owner))
     }
     pub(super) fn layout(&self) -> Result<crate::v3::layout::Layout, String> {
-        crate::v3::layout::Layout::of_library(self.tx)
+        self.forward(|tx| crate::v3::layout::Layout::of_library(tx))
     }
     pub(super) fn publication_projection(
         &self,
         store: &crate::v3::audit_store::HashReader<'_>,
     ) -> Result<crate::content_publication::PublicationProjection<'s, 's>, String> {
-        crate::content_publication::PublicationProjection::new(self.tx, store)
+        self.forward(|tx| crate::content_publication::PublicationProjection::new(tx, store))
     }
     pub(super) fn resolve_indexed_templates_pending_view(
         &self,
@@ -1170,14 +1197,16 @@ impl<'s> ReadSnapshot<'s> {
         batch_id: &str,
         previous_frontier: i64,
     ) -> Result<crate::content_publication::PendingRefTemplates, String> {
-        crate::content_publication::resolve_indexed_templates_pending_view(
-            self.tx,
-            store,
-            metadata,
-            roots,
-            batch_id,
-            previous_frontier,
-        )
+        self.forward(|tx| {
+            crate::content_publication::resolve_indexed_templates_pending_view(
+                tx,
+                store,
+                metadata,
+                roots,
+                batch_id,
+                previous_frontier,
+            )
+        })
     }
     pub(super) fn resolve_ordinary_indexed_templates_pending_view(
         &self,
@@ -1188,15 +1217,17 @@ impl<'s> ReadSnapshot<'s> {
         previous_frontier: i64,
         projection: &mut crate::content_publication::PublicationProjection<'_, '_>,
     ) -> Result<crate::content_publication::PendingRefTemplates, String> {
-        crate::content_publication::resolve_ordinary_indexed_templates_pending_view(
-            self.tx,
-            store,
-            metadata,
-            roots,
-            batch_id,
-            previous_frontier,
-            projection,
-        )
+        self.forward(|tx| {
+            crate::content_publication::resolve_ordinary_indexed_templates_pending_view(
+                tx,
+                store,
+                metadata,
+                roots,
+                batch_id,
+                previous_frontier,
+                projection,
+            )
+        })
     }
     pub(super) fn resolve_native_dual_templates_pending_view(
         &self,
@@ -1207,9 +1238,11 @@ impl<'s> ReadSnapshot<'s> {
         previous: i64,
         projection: &crate::v3::object_index::NativeCutProjection<'_, '_, '_>,
     ) -> Result<crate::content_publication::PendingRefTemplates, String> {
-        crate::content_publication::resolve_native_dual_templates_pending_view(
-            self.tx, store, metadata, roots, batch, previous, projection,
-        )
+        self.forward(|tx| {
+            crate::content_publication::resolve_native_dual_templates_pending_view(
+                tx, store, metadata, roots, batch, previous, projection,
+            )
+        })
     }
     #[cfg(test)]
     pub(super) fn trace_window(&self, boundary: &'static str, edge: &'static str, ok: bool) {
@@ -1254,7 +1287,15 @@ impl SnapshotFrames {
         {
             return;
         }
-        if let Ok(copy) = frame.checked_same_material(digest, frame.tag(), frame.body().to_vec()) {
+        // 入表只是尽力而为：内存预留失败就不缓存（下次照常真读），不让分配失败中止进程。
+        let mut body = Vec::new();
+        if body.try_reserve_exact(frame.body().len()).is_err()
+            || self.frames.try_reserve(1).is_err()
+        {
+            return;
+        }
+        body.extend_from_slice(frame.body());
+        if let Ok(copy) = frame.checked_same_material(digest, frame.tag(), body) {
             self.frames.insert(*digest, copy);
             self.bytes += bytes;
         }
@@ -1301,9 +1342,11 @@ impl<'a> ReadStore<'a> {
     /// 四道门全部成立时给出纪元，否则 None：
     /// 1. main 已建立读快照（`SQLITE_TXN_READ`）；
     /// 2. 所有库（含 temp）都不超过 READ，即本事务哪儿都没写过（含 DDL、SAVEPOINT 内写后回滚）；
-    /// 3. temp 里没有遮蔽不带库名 `s_content_nodes` 的同名表或视图（ATTACH 排在 main 之后，遮蔽不了）；
+    /// 3. temp 里没有遮蔽不带库名 `s_content_nodes` 的同名**表**（ATTACH 排在 main 之后，遮蔽不了）。
+    ///    `sqlite3_table_column_metadata` 对视图直接返回错误，所以这道门看不见 temp **视图**；
     /// 4. 节点读语句已在本连接预编译，且所有同文副本都未过期（authorizer 更换、schema 变化会令其
-    ///    过期；基线下一次读会重新编译并询问授权器，所以过期时交给真实读取）。
+    ///    过期；基线下一次读会重新编译并询问授权器，所以过期时交给真实读取）。temp 视图的遮蔽靠
+    ///    这道门挡住：任何 temp schema 变更都会令本连接全部语句过期。调整本门时须保住这一覆盖。
     ///
     /// 全部走 FFI，不执行 SQL，不调用授权器。
     fn snapshot_epoch(&self) -> Option<SnapshotEpoch> {
@@ -1963,6 +2006,7 @@ mod tests {
 
     /// 复审反例 D/E/F：TEMP 同名表或视图遮蔽不带库名的 `s_content_nodes`，事务内新建（temp
     /// 写过）或事务之间在 autocommit 下新建再进入 READ，都必须与基线一样读 temp（这里为空）。
+    /// temp 表由门 3 挡住；temp 视图由门 4 挡住（temp schema 变更令全部语句过期）。
     #[test]
     fn read_snapshot_frames_do_not_survive_temp_shadow() {
         for ddl in [
