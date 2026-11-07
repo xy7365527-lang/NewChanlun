@@ -574,6 +574,7 @@ def main() -> None:
     }
 
     result_path = ROOT / "tmp" / "oq5-multi-edge-results.json"
+    result_path.parent.mkdir(parents=True, exist_ok=True)  # tmp/ 不入库，新检出没有
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result_package, f, indent=2, ensure_ascii=False, default=str)
     print(f"  结果 -> {result_path}")

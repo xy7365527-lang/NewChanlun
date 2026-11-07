@@ -24,7 +24,7 @@ python3 ../topological-computation/start_fengliang.py \
   --instances 3 --serve --multiproc --load-experiments
 
 # 或后台运行
-nohup python3 start_fengliang.py \
+mkdir -p ../tmp && nohup python3 start_fengliang.py \
   --instances 3 --serve --multiproc --load-experiments \
   > ../tmp/fengliang-daemon.log 2>&1 &
 
@@ -48,7 +48,7 @@ cd /root/NewChanlun
 # 方式A：cron（简单）
 crontab -e
 # 添加：
-*/30 * * * * cd /root/NewChanlun && python3 scripts/openclaw_scheduler.py >> tmp/openclaw-scheduler.log 2>&1
+*/30 * * * * cd /root/NewChanlun && mkdir -p tmp && python3 scripts/openclaw_scheduler.py >> tmp/openclaw-scheduler.log 2>&1
 
 # 方式B：systemd（推荐，自动依赖 fengliang.service）
 sudo cp scripts/openclaw.service /etc/systemd/system/
@@ -57,7 +57,7 @@ sudo systemctl enable openclaw
 sudo systemctl start openclaw
 
 # 方式C：后台运行
-nohup python3 scripts/openclaw_scheduler.py --loop > tmp/openclaw-scheduler.log 2>&1 &
+mkdir -p tmp && nohup python3 scripts/openclaw_scheduler.py --loop > tmp/openclaw-scheduler.log 2>&1 &
 
 # 方式D：手动单次
 python3 scripts/openclaw_scheduler.py

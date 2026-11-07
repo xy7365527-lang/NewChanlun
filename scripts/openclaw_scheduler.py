@@ -86,8 +86,7 @@ def git_push(message: str) -> bool:
     files_to_stage = [
         ".chanlun/",
         "topological-computation/.chanlun/",
-        "tmp/brn-level-report.json",
-    ]
+    ]  # brn-level-report.json 是运行时报告，由 brn_level_analysis.report_dir() 写到仓库外，不入库
     for f in files_to_stage:
         _run_cmd(["git", "add", f], cwd=REPO_ROOT)
 

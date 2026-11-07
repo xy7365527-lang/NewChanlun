@@ -9,7 +9,7 @@
 
 **取回**：
 - review-results：`/Volumes/AgentStorage/repo-archive/review-results-closed-9b436af2d2.tar`（tar，保留原路径，`tar -xf <tar> <目录>`；tar 里另有 `issue1371-tb01-b`，那个目录由 #1908 出仓，本表不收）。也可直接 `git show 3d61fb7294:<路径>`。
-- tmp/：去跟踪 756 个文件中的 736 个（2026-02 到 07 被强制加入的一次性实验输出）。被仓内代码按路径读取或 `git add` 的 20 个文件继续跟踪，脚本行为不变；只被文档当作证据引用的随之出仓，例如 `.chanlun/definitions/qujiantao.md`、`.chanlun/genealogy/settled/321-*`、`329-*`。原树在 `/Volumes/AgentStorage/repo-archive/tmp-from-main-979da0c634/tmp/`（与 main `3d61fb7294` 的 blob 逐字节核对一致），也可直接 `git show 3d61fb7294:tmp/<文件>`。
+- tmp/：756 个被强制加入的文件全部去跟踪（tmp/ 本来就在 .gitignore）。按用途分类迁移，脚本行为保持不变：真正的产品输入 `real-data-multi-tf-validation.json` 原样移到 `scripts/inputs/`，两个分段诊断脚本已同批改读取路径；运行时报告 `brn-level-report.json` 由 `brn_level_analysis.report_dir()` 写到仓库外（`NEWCHAN_REPORT_DIR`，默认外卷 `/Volumes/AgentStorage/newchanlun-reports`，没有外卷时用 `~/.local/state/newchanlun/reports`），`openclaw_scheduler` 照常生成报告，但不再 `git add`；其余是脚本每次运行都会重新生成的输出，写入前都会先建 tmp/ 目录（这次给 6 个原先依赖 tmp/ 已存在的脚本补了建目录，部署文档的日志重定向前也加了 `mkdir -p tmp`）；`detect_structural_encounters.py` 读的 `cross-gang-refs.json` 是 `scan_cross_gang_refs.py` 的产物，缺失时会给出明确提示。只被文档当作证据引用的，例如 `.chanlun/definitions/qujiantao.md`、`.chanlun/genealogy/settled/321-*`、`329-*`，可用下面的方式取回。原树在 `/Volumes/AgentStorage/repo-archive/tmp-from-main-979da0c634/tmp/`（与 main `3d61fb7294` 的 blob 逐字节核对一致），也可直接 `git show 3d61fb7294:tmp/<文件>`。
 - 归档时间：2026-11-06（2026-11-07 按 #1912 正式审查补正）。
 
 | 目录 | 票 |

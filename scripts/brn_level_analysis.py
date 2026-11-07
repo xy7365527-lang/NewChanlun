@@ -16,6 +16,15 @@ import sys
 from datetime import datetime, date
 from pathlib import Path
 
+
+def report_dir() -> Path:
+    """运行时报告写到仓库外（不入库）：NEWCHAN_REPORT_DIR；未设时本机外卷 /Volumes/AgentStorage/newchanlun-reports，
+    没有外卷（如 VPS）时 ~/.local/state/newchanlun/reports。"""
+    if os.environ.get("NEWCHAN_REPORT_DIR"):
+        return Path(os.environ["NEWCHAN_REPORT_DIR"])
+    volume = Path("/Volumes/AgentStorage")
+    return volume / "newchanlun-reports" if volume.is_dir() else Path.home() / ".local/state/newchanlun/reports"
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import yfinance as yf
@@ -838,7 +847,8 @@ def main():
 
     # 保存 JSON
     import json
-    out_path = Path(__file__).resolve().parent.parent / "tmp" / "brn-level-report.json"
+    out_path = report_dir() / "brn-level-report.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2, default=str, ensure_ascii=False), encoding="utf-8")
     print(f"JSON 报告已保存: {out_path}", flush=True)
 

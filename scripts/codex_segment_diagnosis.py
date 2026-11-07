@@ -29,7 +29,7 @@ def build_prompt() -> str:
 
     segment_engine_v1 = read_file("src/newchan/a_segment_v1.py")
     segment_v0_types = read_file("src/newchan/a_segment_v0.py")
-    validation_json = read_file("tmp/real-data-multi-tf-validation.json")
+    validation_json = read_file("scripts/inputs/real-data-multi-tf-validation.json")
 
     # Extract key lesson excerpts (shortened for token efficiency)
     lesson_62_excerpt = """缠论第62课核心定义：
@@ -218,6 +218,7 @@ def main() -> None:
 
     # Write output
     output_path = REPO_ROOT / "tmp" / "codex-segment-diagnosis.md"
+    output_path.parent.mkdir(parents=True, exist_ok=True)  # tmp/ 不入库，新检出没有
     header = """# Codex/GPT 段引擎诊断报告
 
 > 异质诊断：OpenAI o3/gpt-4o 对段引擎 71 strokes → 1 segment 压缩的独立分析

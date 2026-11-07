@@ -41,7 +41,7 @@ def read_file(rel_path: str) -> str:
 segment_v1_src = read_file("src/newchan/a_segment_v1.py")
 segment_v0_src = read_file("src/newchan/a_segment_v0.py")
 segment_engine_src = read_file("src/newchan/core/recursion/segment_engine.py")
-validation_json = read_file("tmp/real-data-multi-tf-validation.json")
+validation_json = read_file("scripts/inputs/real-data-multi-tf-validation.json")
 genealogy_247 = read_file(".chanlun/genealogy/settled/247-real-data-multi-tf-validation.md")
 
 # 缠论原文 -- 线段相关课程
@@ -201,6 +201,7 @@ result_text, model_used = _diagnose(PROMPT)
 
 # --- 保存结果 ---
 output_path = ROOT / "tmp" / "gemini-segment-diagnosis.md"
+output_path.parent.mkdir(parents=True, exist_ok=True)  # tmp/ 不入库，新检出没有
 output_path.write_text(
     f"# 段引擎异质诊断报告\n\n"
     f"> 模型: {model_used}（OpenAI GPT-5.5，2026-06-23 从 Gemini 换装）\n"
