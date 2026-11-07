@@ -1,13 +1,12 @@
 
 import json
 import subprocess
-from pathlib import Path
 
 from pilot1742.approval import spec_ruling, spec_ruling_digest
 
 
-def test_ts_python_ruling_protocol():
-    module = Path(__file__).with_name('fixtures') / 'spec-ruling-1915.mts'
+def test_ts_python_ruling_protocol(wayfinder_engine_path):
+    module = wayfinder_engine_path
     bodies = ['中文\r\n正文 \r\n', '中文\n正文', '正文\ufeff', '正文\u0085', '正文\u001c', '正文\u2029', '正文\r']
     cases = []
     for body in bodies:

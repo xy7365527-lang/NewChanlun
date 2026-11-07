@@ -309,9 +309,13 @@ class BoatExecution(WorkerExecution):
         return bindings
 
     def submit(self, key: WorkerKey) -> None:
-        binding = self.load(key) or self._store(key, self._intent(key))
-        if binding.submission in ("submitting", "submitted", "collected"):
+        from .run import require_free_space
+
+        binding = self.load(key)
+        if binding is not None and binding.submission in ("submitting", "submitted", "collected"):
             return
+        require_free_space(self.run.dir)
+        binding = binding or self._store(key, self._intent(key))
         if binding.stop_id or binding.cancel_requested:
             raise ExecutionUnknown("已取消的Boat绑定不得重新派工")
         if binding.sandbox_id is None:
@@ -534,6 +538,9 @@ class BoatExecution(WorkerExecution):
             raise ExecutionUnknown(problem)
 
     def _launch(self, key: WorkerKey, binding: BoatBinding) -> None:
+        from .run import require_free_space
+
+        require_free_space(self.run.dir)
         self._require_package_spec(binding)
         launch = self.cli.call("exec", cast(str, binding.sandbox_id), "--detach", "--", "bash", "-lc",
                                self._command(binding, "submit") + " " + str(int(cast(float, binding.deadline))))[-1]

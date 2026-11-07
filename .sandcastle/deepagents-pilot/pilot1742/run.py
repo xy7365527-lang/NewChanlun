@@ -112,7 +112,7 @@ DISPATCH_FREE_BYTES = 16 << 30
 
 
 class InsufficientSpace(Exception):
-    """写入卷剩余空间低于派工门槛；未领取、未建 checkout，空间恢复后同一入口原样重试。"""
+    """写入卷剩余空间低于新增资源门槛；保留已有工作，空间恢复后同一入口重试。"""
 
 
 def require_free_space(path: Path) -> None:
@@ -122,7 +122,7 @@ def require_free_space(path: Path) -> None:
     free = shutil.disk_usage(existing).free
     if free < DISPATCH_FREE_BYTES:
         raise InsufficientSpace(f"{existing} 所在卷可用 {free} bytes，低于派工门槛 {DISPATCH_FREE_BYTES} bytes；"
-                                "未领取、未派工，空间恢复后重试")
+                                "本次新增资源已阻止，已有工作可继续恢复")
 
 
 def _now() -> str:
@@ -739,6 +739,7 @@ class PilotRun:
         return DEEPAGENTS_OUTPUT_PROTOCOL if declaration in source.splitlines() else "legacy"
 
     def _prepare_dispatch(self, key: WorkerKey, brief: str, facts: RunFacts) -> None:
+        require_free_space(self.dir)
         model = self.spec.model_for(key.role)
         checkout = self.spec.checkout_for(key.role)
         if key.role != "author":
@@ -768,6 +769,7 @@ class PilotRun:
                 self.execution.submit(key)
             self.trail("boat_dispatched", key=key.name)
             return
+        require_free_space(self.dir)
         intent = json.loads((self.dir / "intents" / f"{key.name}.json").read_text())
         out = self._key_dir(key)
         out.parent.mkdir(parents=True, exist_ok=True)

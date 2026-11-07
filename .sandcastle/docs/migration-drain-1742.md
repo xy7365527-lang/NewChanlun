@@ -165,7 +165,7 @@ executor cutover audit-release --workers-log "$WORKERS_LOG" \
 
 必须在新 wayfinder-engine 与 deepagents-executor bootstrap 之前完成 verify/record；它们启动后也使用旧宿主 cwd，再跑冻结核查会失败关闭。切流成功后是否恢复 arch-hotzone 由部署 owner 在 record 完成后决定。
 
-启动新 engine 后，先运行 `--once --dry-run` 检查新放行标签。`executor serve --once` 是实际执行入口，不是 dry-run。它会为缺签批的票生成请求，只有有效 SPEC 签批才进行票面写入。写集与签批登记方法见 [新执行器队列操作](../deepagents-pilot/EXECUTOR.md#接收引擎放行队列)。
+启动新 engine 后，先运行 `--once --dry-run` 检查新放行标签。`executor serve --once` 是实际执行入口，不是 dry-run。依据 #1742 最新用户授权，它读取绑定当前 SPEC 正文的非作者独审裁定，不生成普通 SPEC 人工签批请求。有效 PASS、写集与准入条件均成立才进行票面写入。写集与裁定协议见 [新执行器队列操作](../deepagents-pilot/EXECUTOR.md#接收引擎放行队列)。
 
 安装 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist` 前，把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 替换为已核对的绝对路径。确认模板的 `PATH` 能找到 Boat CLI。模板只保存配置和密钥文件的路径，不保存密钥内容。由部署 owner 加载服务并核对真实队列交付到精确 `awaiting_merge(h)`，代码和离线夹具不代替这一步。
 

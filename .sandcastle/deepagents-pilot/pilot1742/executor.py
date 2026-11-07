@@ -328,7 +328,11 @@ class TicketExecutor:
                                               record.generation + 1 if record else 1, "intent",
                                               unit.admission.kind, False, None, None, _now()))
             if isinstance(unit.admission, Queued):
-                self.admit(run_dir, claim.generation)
+                try:
+                    self.admit(run_dir, claim.generation)
+                except (ClaimRefused, ValueError) as error:
+                    txn.write(advance(claim, "halt", reason=str(error)))
+                    raise Halted(str(error)) from error
             journal = Journal(claim_effects(self.claims, unit.ticket, claim.run_id, claim.generation))
             if claim.state == "intent":
                 journal.converge("label", lambda: self._label_probe(), lambda: self.gateway.add_label(

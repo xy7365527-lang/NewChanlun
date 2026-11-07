@@ -1,6 +1,6 @@
 # 用新执行器交付一张首证专用票
 
-新执行器把专用票或切流后的引擎放行票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 交给现有 hillclimb 审查与合入消费者。
+新执行器把专用票或切流后的引擎放行票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。后续精确 head 独审使用 [external_review review-pr](EXTERNAL-REVIEW.md)。执行器没有自动合入消费者，主控按当前授权完成合入。
 
 `register` 保留首证专用票入口。`serve` 接收切流后的引擎放行队列，见文末。接管旧 owner 手里的票仍一律拒绝。
 
@@ -58,7 +58,7 @@ executor register --ticket <票号> --run-id t<票号>-1 --base "$BASE" \
 executor run --run-id t<票号>-1 --private-key "$PEM"
 ```
 
-退出码 75 表示这个 run 已有控制进程，或状态根所在卷剩余空间低于派工门槛（16 GiB，`run.DISPATCH_FREE_BYTES`）。空间门在领取持有和新建 checkout 之前检查，拦下时不领取、不建 checkout、不写票面，腾出空间后重跑同一命令。控制进程被杀后直接重跑同一命令，工蜂按原键收养，已做的外部写入先读回再决定。受控故障注入用 `--crash-at`，取值为 `after_label_before_receipt`、`after_claim_before_receipt`、`after_push_before_receipt`、`after_pr_before_receipt`、`after_status_before_receipt`、`after_deliver_before_receipt`，进程在该点被 SIGKILL。
+退出码 75 表示这个 run 已有控制进程，或状态根所在卷剩余空间低于派工门槛（16 GiB，`run.DISPATCH_FREE_BYTES`）。新 run 在领取持有前检查空间；已有 run 仍可打开、收养工蜂、取回终态并回收 VM。新建 checkout、准备新工蜂、创建 Boat 绑定和启动远端命令各自在新增资源前检查，包括尚未认领的命令补派。空间不足时保留原 run，腾出空间后重跑同一命令。控制进程被杀后直接重跑同一命令，工蜂按原键收养，已做的外部写入先读回再决定。受控故障注入用 `--crash-at`，取值为 `after_label_before_receipt`、`after_claim_before_receipt`、`after_push_before_receipt`、`after_pr_before_receipt`、`after_status_before_receipt`、`after_deliver_before_receipt`，进程在该点被 SIGKILL。
 
 明确决定撤销人工中断并继续运行时才加 `--resume`。恢复 Boat 在途工蜂时也一样：它会清除人工中断，不是只读对账选项；只查看本地事实用 `executor status`。
 
@@ -94,7 +94,7 @@ executor register --ticket <票号> --run-id t<票号>-2 --base "$BASE" ...
 `status` 的 `phase` 在发布后取以下值。
 
 - `awaiting_merge`。冻结 head 已在远端分支，draft PR 的 head 等于它，状态与交付标记都在。PR 链接在 `delivery.state.pr.url`。
-- `merged`。人已合入该 PR，执行器不再写任何东西。
+- `merged`。GitHub 已确认该 PR 合入，执行器不再写任何东西。
 - `stale`。远端分支或 PR 的 head 不是冻结 head，后代也算。执行器不覆盖、不收养，`delivery.stale.observed` 是观察到的 SHA。由主控决定重新评审还是释放。
 - `halted`（持有记录）。锁内复核发现票被关、`deepagents` 标签被摘、票或 PR 被加了禁用标签，或持有 post-check 失败。远端 PR 不合交付合同时也转 halted：已关闭未合入、目标不是 main、open 时不是 draft、不是本 App 所开、正文缺本票 PR 标记。执行器不改动这个 PR，不重开、不改目标、不改回 draft。只有主控能释放。
 
@@ -148,11 +148,11 @@ executor run --run-id t<票号>-1 --private-key "$PEM"
 deepagents-scope: rust/src/example/ rust/tests/example/
 ```
 
-队列从所属 SPEC 当前正文读取 `deepagents-scope`。每个动作锁内，scope 检查与冻结使用同一次读取的正文。实装票自行新增 scope 不授予权限，已有 WorkUnit 的写集也不能超出当前 SPEC。缺声明显示 `needs_info` 原因；源检出缺基线显示 `environment` 原因。切流记录、父链、负责人、blocker 和日志核验保持不变。
+队列从所属 SPEC 当前正文读取 `deepagents-scope`。每个动作锁内，scope 检查与冻结使用同一次读取的正文。实装票自行新增 scope 不授予权限，已有 WorkUnit 的写集也不能超出当前 SPEC。首次登记缺声明显示 `needs_info` 原因；已有 claim 重启时 scope 收窄或删除会在票级锁内持久化 `halted`。scope 仍有效但独审裁定缺失或 BLOCK 时，持有保持原状态，等新的有效 PASS 恢复同一 run。源检出缺基线显示 `environment` 原因。切流记录、父链、负责人、blocker 和日志核验保持不变。
 
 ### 为新队列 run 提供 SPEC 授权
 
-Queued 消费可信编排账号发布的「SPEC 独审裁定」。默认账号为 `xy7365527-lang`，可用 `WAYFINDER_ORCHESTRATOR` 与 Wayfinder 保持一致。非作者独审原件包含 `specNumber`、`digest`、`author`、`reviewer`、`verdict`，由 PR1915 的 `--spec-ruling <号> --review-file <原件>` helper 核对当前正文后发布，并附证据位置。裁定摘要按 CRLF→LF、trimEnd 后的 UTF-8 计算。无效 PASS、后续 BLOCK 或可信撤回都阻止动作，不回退旧签名。
+依据 #1742 最新用户授权，保留 pstack、Matt 与 DeepAgents，普通 SPEC 不再要求人工批准。Queued 消费可信编排账号发布的「SPEC 独审裁定」。默认账号为 `xy7365527-lang`，可用 `WAYFINDER_ORCHESTRATOR` 与 Wayfinder 保持一致。非作者独审原件包含 `specNumber`、`digest`、`author`、`reviewer`、`verdict`，由 PR1915 的 `--spec-ruling <号> --review-file <原件>` helper 核对当前正文后发布，并附证据位置。部署消费者前须一并集成该生产者。裁定摘要按 CRLF→LF、trimEnd 后的 UTF-8 计算。无效 PASS、后续 BLOCK 或可信撤回都阻止动作，不回退旧签名。
 
 每次领取、派工、提交、推送、PR、状态和交付边界重新读取当前正文与完整评论。授权通过才冻结 `runs/<run>/spec/<号>.md` 原始 UTF-8 字节。旁注保留原始 `target`、代次及裁定 comment id、账号、作者、独审、证据和规范化 digest，不生成 nonce 或签批命令。worker 封包及 `_require_review_spec` 仍使用原始 target，不能改用规范化 digest。两个冻结文件间崩溃时，下一次有效裁定会重写收敛。
 
@@ -160,7 +160,7 @@ Queued 消费可信编排账号发布的「SPEC 独审裁定」。默认账号�
 
 工蜂原始封包与当前 target 不符时，原有 `execution_unknown`、取消、排空、换代规则不变。发布独审封包不符仍返回 `review_spec_mismatch`，不能重派同 head 独审。push 后裁定撤销会停在 PR 前；恢复同一 run 时 Journal 读回已完成上传，不重复推送或建 PR。
 
-普通 Queued 默认 `candidate_approval=false`，不调用人工 SPEC signer。显式候选批准仍绑定确切 head；Takeover 继续拒绝。DedicatedPilot 与 v1 原合同不变。队列只发布 draft PR 到 `awaiting_merge(h)`，自动审查/合入由现有 hillclimb 消费者负责。
+普通 Queued 默认 `candidate_approval=false`，不调用人工 SPEC signer。显式候选批准仍绑定确切 head；Takeover 继续拒绝。DedicatedPilot 与 v1 原合同不变。队列只发布 draft PR 到 `awaiting_merge(h)`。已有独审入口为 `python -m pilot1742.external_review review-pr`，需其部署验收有效；本队列不自动调用该入口，也没有 hillclimb 自动审查或合入消费者。
 
 ### 运行队列
 
@@ -169,7 +169,7 @@ executor serve --once --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --priv
 executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
 ```
 
-`serve` 沿用旧 claim-loop 单票在飞的上限。票级 ClaimStore 和全局 serve 锁防止两个控制进程重复持有。返回 75 或被 SIGKILL 的子进程在下一轮恢复同一 run 和代次；返回 0 或 2 也不代表工蜂结束。队列在派下一票前只读原 run 的工蜂事实，也枚举没有 intent 的 Boat 绑定。`Running`、`EffectUnknown` 或无法读取的工蜂状态继续占槽，包括已中断、halted、released 或已摘队列标签的票；已满足 [失败排空条件](BOAT.md#取消后释放队列槽或换代) 的绑定可释放槽位。队列的检查不访问 Boat，不收集或重派工蜂；原控制入口负责恢复和收集。完成的 run 不重新派工，发布沿用逐效果 Journal 的读回去重。派工前状态根所在卷剩余空间低于派工门槛时，该票保持 `queued` 并写明可用与所需字节，跳过该票派工，继续遍历后续已交付票对账，下一轮重试；已交付 run 的读回对账、`cancel-worker`、`reconcile` 与 `release` 不经过这道门。
+`serve` 沿用旧 claim-loop 单票在飞的上限。票级 ClaimStore 和全局 serve 锁防止两个控制进程重复持有。返回 75 或被 SIGKILL 的子进程在下一轮恢复同一 run 和代次；返回 0 或 2 也不代表工蜂结束。队列在派下一票前只读原 run 的工蜂事实，也枚举没有 intent 的 Boat 绑定。`Running`、`EffectUnknown` 或无法读取的工蜂状态继续占槽，包括已中断、halted、released 或已摘队列标签的票；已满足 [失败排空条件](BOAT.md#取消后释放队列槽或换代) 的绑定可释放槽位。队列的检查不访问 Boat，不收集或重派工蜂；原控制入口负责恢复和收集。完成的 run 不重新派工，发布沿用逐效果 Journal 的读回去重。新 run 创建前，状态根所在卷剩余空间低于派工门槛时保持 `queued`，继续遍历后续已交付票对账。已有 run 不受队列启动空间门阻挡；新增派工在执行器内部受空间门约束，返回 75 后下一轮恢复同一 run。已派工蜂的终态取回、收集、回收以及 `cancel-worker`、`reconcile`、`release` 不经过新增资源门。
 
 旧 claim 已 `released` 且工蜂已排空时，仍在队列内的票登记或收养下一个 run；旧 run 的终态不阻止新 run 进入票级锁内的排空核验和换代。新 run 仍须重核当前正文的独审裁定，之后才增加持有代次。未排空的旧 run 继续占槽，不登记下一代。
 
@@ -180,3 +180,9 @@ executor serve --loop --poll-seconds 60 --workers-log "$PWD/.sandcastle/logs/wor
 launchd 模板在 `.sandcastle/launchd/com.newchanlun.deepagents-executor.plist`。部署 owner 把 `__REPO__`、`__VENV__`、`__PRIVATE_KEY_PATH__`、`__BOAT_CONFIG__` 和 `__BOAT_API_KEY_FILE__` 全部替换为已核对的绝对路径后安装。后两个占位符分别设置 `PILOT_BOAT_CONFIG` 与 `PILOT_BOAT_API_KEY_FILE`。配置和控制端 key 文件的要求见 [Boat 受管配置](BOAT.md#受管配置)。
 
 使用模板的 `PATH` 执行 `command -v boat`，确认服务能找到已登录的 CLI。模板默认包含 `/Users/silencehan/.local/bin`。App 私钥路径在参数中，Boat key 文件路径在环境中，两种密钥的内容都不进入 plist。
+
+### 组合生产者回归
+
+`tests/test_spec_ruling.py` 和队列 release 测试直接导入 `scripts/wayfinder_engine.mts`。默认检查当前检出；PR1915 尚未集成时，可将 `WAYFINDER_ENGINE_PATH` 指向从精确提交导出的真实 engine，连同其实际导入文件，并使用本候选的 `.sandcastle/queue-policy.json` 组成联合候选。不能用协议副本替代生产源码。
+
+从 `.sandcastle/deepagents-pilot` 运行 `python -m pytest -q tests/test_spec_ruling.py tests/test_queue.py`。队列测试保留 SIGKILL 后同 run 恢复与精确交付断言；运行记录须注明生产者 SHA、消费者 SHA 和共享策略来源。

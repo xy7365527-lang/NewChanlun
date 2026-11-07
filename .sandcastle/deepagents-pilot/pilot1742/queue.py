@@ -288,7 +288,8 @@ class QueueIntake:
                                            'reason': _stop_reason(run_dir)}
                         continue
                     try:
-                        require_free_space(self.state_root)
+                        if not (run_dir / 'run.json').exists():
+                            require_free_space(self.state_root)
                     except InsufficientSpace as error:
                         results[ticket] = {'phase': 'queued', 'run_id': unit.run_id, 'reason': str(error)}
                         continue

@@ -2,14 +2,15 @@ import json
 
 import pytest
 from approval_signing.protocol import Decision
+from signing_fixture import Signer
+from v2env import TICKET, V2Env
+
 from pilot1742.claims import ClaimStore
 from pilot1742.cutover import CutoverStore, FrozenSnapshot, RemoteBarrier
 from pilot1742.executor import AdmissionRefused, ApprovalRequired
 from pilot1742.queue import QueueIntake, QueueWaiting
 from pilot1742.run import Halted, PilotRun
 from pilot1742.workunit import DedicatedPilot, Queued, forbidden_for, parse_work_unit
-from signing_fixture import Signer
-from v2env import TICKET, V2Env
 
 SPEC = 1340
 
@@ -66,6 +67,7 @@ def authorize(v2, cutover, unit, signer):
 @pytest.mark.parametrize('registered_before_restart', [False, True])
 def test_released_drained_run_advances_to_next_generation(queued, registered_before_restart):
     from conftest import FAKE, MODELS
+
     from pilot1742.claims import advance
     from pilot1742.executor import load_unit, open_v2_run
 
@@ -140,6 +142,7 @@ def test_queue_refuses_missing_contract_without_writes(queued, bad):
 
 def test_unsigned_queue_delivers_exact_head_and_replays_without_duplicate_effects(queued, monkeypatch):
     from conftest import FAKE, MODELS
+
     from pilot1742.executor import load_unit, open_v2_run
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -197,7 +200,7 @@ def test_busy_run_is_skipped_and_same_run_is_recovered_next_round(queued):
     assert seen == [f't{TICKET}-1'] * 3
 
 
-def test_engine_emission_to_queue_child_sigkill_recovery_and_exact_delivery(queued):
+def test_engine_emission_to_queue_child_sigkill_recovery_and_exact_delivery(queued, wayfinder_engine_path):
     import base64
     import multiprocessing
     import subprocess
@@ -209,10 +212,18 @@ def test_engine_emission_to_queue_child_sigkill_recovery_and_exact_delivery(queu
     from cryptography.hazmat.primitives import serialization
 
     v2, cutover, intake, signer = queued
-    module = Path(__file__).resolve().parents[3] / 'scripts' / 'wayfinder_engine.mts'
+    module = wayfinder_engine_path
     script = '''const m = await import(process.argv[1]);
       const label = m.releaseLabel(process.argv[2], process.argv[3]);
-      m.releaseTicket(4242, {read: () => JSON.stringify({state:'OPEN',labels:[],assignees:[]}),
+      const body = 'fixture SPEC', specNumber = 7;
+      const ruling = m.specRulingBody({specNumber, verdict:'PASS', author:'fixture-author',
+        reviewer:'fixture-reviewer', digest:m.specBodyDigest(body), evidence:'/fixture/review.json'});
+      const read = cmd => JSON.stringify(cmd.includes('/comments')
+        ? [{user:{login:'fixture'}, body:ruling, created_at:'2026-11-07T00:00:00Z'}]
+        : cmd.startsWith('issue view 7 ')
+          ? {number:7, title:'SPEC: fixture', body, state:'OPEN'}
+          : {title:'[impl] queue fixture', body:'', state:'OPEN', labels:[], assignees:[]});
+      m.releaseTicket(4242, {specs:[specNumber], orchestrator:'fixture'}, {read,
         write: cmd => { console.log(cmd); return ''; }}, label);'''
     emitted = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', script,
                               module.as_uri(), str(v2.home), str(cutover.drain_root)],
@@ -296,9 +307,10 @@ def test_spec_recheck_interrupts_graph_and_resume_payload_does_not_authorize(que
     from langchain_core.messages import AIMessage
     from langgraph.checkpoint.sqlite import SqliteSaver
     from langgraph.types import Command
+    from test_agent import call, scripted
+
     from pilot1742.agent import build_agent
     from pilot1742.executor import load_unit, open_v2_run
-    from test_agent import call, scripted
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -387,6 +399,7 @@ def test_queue_post_check_conflict_halts_and_withdraws_own_mirror(queued):
 @pytest.fixture
 def delivered(queued):
     from conftest import FAKE, MODELS
+
     from pilot1742.executor import load_unit, open_v2_run
 
     v2, cutover, intake, signer = queued
@@ -510,6 +523,7 @@ def test_bad_unit_is_isolated_without_stalling_unrelated_ticket(queued):
 @pytest.mark.parametrize('fact', ['running', 'effect_unknown'])
 def test_child_exit_cannot_release_unfinished_worker_slot(queued, monkeypatch, code, fact):
     from conftest import FAKE, MODELS
+
     from pilot1742 import run as module
     from pilot1742.domain import WorkerKey
     from pilot1742.executor import load_unit, open_v2_run
@@ -553,11 +567,12 @@ def test_existing_boat_worker_keeps_slot_across_skip_paths(queued, monkeypatch, 
     from dataclasses import replace
 
     from conftest import FAKE, MODELS
+    from test_boat import config
+
     from pilot1742.boat_execution import BoatBinding, BoatConfig, BoatExecution, BoatRun
     from pilot1742.claims import advance
     from pilot1742.domain import WorkerKey
     from pilot1742.executor import load_unit, open_v2_run
-    from test_boat import config
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -603,10 +618,11 @@ def test_background_approval_recheck_preserves_operator_interrupt(queued, monkey
     from conftest import FAKE, MODELS
     from langchain_core.messages import AIMessage
     from langgraph.checkpoint.sqlite import SqliteSaver
+    from test_agent import call, scripted
+
     from pilot1742 import agent as model_module
     from pilot1742 import executor as cli
     from pilot1742 import run as run_module
-    from test_agent import call, scripted
 
     v2, cutover, intake, signer = queued
     unit = intake.register(TICKET)
@@ -789,6 +805,7 @@ def test_low_disk_continues_reconciling_later_merged_ticket(delivered, monkeypat
 
 def test_current_ruling_overwrites_historical_pending_and_preserves_raw_spec(queued):
     from approval_signing.protocol import spec_target
+
     from pilot1742.approval import signed_spec, spec_ruling_digest
     v2, cutover, intake, signer = queued
     v2.github.issues[SPEC]['body'] = '# 中文\r\ndeepagents-scope: demo/\r\n \t'
@@ -814,6 +831,7 @@ def test_push_then_revocation_resumes_same_delivery_without_duplicate_upload(que
     from dataclasses import replace
 
     from conftest import FAKE, MODELS
+
     from pilot1742.executor import load_unit, open_v2_run
     v2, cutover, intake, signer = queued
     unit = replace(intake.register(TICKET), candidate_approval=candidate_required)
@@ -848,14 +866,21 @@ def test_push_then_revocation_resumes_same_delivery_without_duplicate_upload(que
 
 
 @pytest.mark.parametrize('label', ['needs-approval', 'ready-for-human', 'needs-info', 'needs-triage', 'wontfix'])
-def test_typescript_release_and_python_intake_share_hold_policy(queued, label):
+def test_typescript_release_and_python_intake_share_hold_policy(queued, label, wayfinder_engine_path):
     import subprocess
-    from pathlib import Path
     v2, cutover, intake, signer = queued
-    module = Path(__file__).resolve().parents[3] / 'scripts/wayfinder_engine.mts'
+    module = wayfinder_engine_path
     script = """const m = await import(process.argv[1]);
       let wrote = false;
-      m.releaseTicket(4242, {read: () => JSON.stringify({state:'OPEN',labels:[{name:process.argv[2]}],assignees:[]}),
+      const body = 'fixture SPEC', specNumber = 7;
+      const ruling = m.specRulingBody({specNumber, verdict:'PASS', author:'fixture-author',
+        reviewer:'fixture-reviewer', digest:m.specBodyDigest(body), evidence:'/fixture/review.json'});
+      const read = cmd => JSON.stringify(cmd.includes('/comments')
+        ? [{user:{login:'fixture'}, body:ruling, created_at:'2026-11-07T00:00:00Z'}]
+        : cmd.startsWith('issue view 7 ')
+          ? {number:7, title:'SPEC: fixture', body, state:'OPEN'}
+          : {title:'[impl] queue fixture', body:'', state:'OPEN', labels:[{name:process.argv[2]}], assignees:[]});
+      m.releaseTicket(4242, {specs:[specNumber], orchestrator:'fixture'}, {read,
         write: () => {wrote = true; return ''; }}, 'deepagents:queue');
       console.log(JSON.stringify(wrote));"""
     result = subprocess.run(['node', '--experimental-strip-types', '--input-type=module', '-e', script,
@@ -963,6 +988,9 @@ def test_low_disk_restart_collects_submitted_boat_without_new_dispatch(queued, m
     binding = BoatBinding(run.execution._identity(key), 'vm-author', 'p1', '/home/user/fixture/p1',
                           'submitted', sandbox_id='bx_fixture')
     run.execution._store(key, binding)
+    package = run.dir / 'boat/packages/p1'
+    package.mkdir(parents=True)
+    (package / 'request.json').write_text(json.dumps({'spec': run.signed_spec().target}))
     receipt = payload(run, run.execution, key, [dict(path='demo/recovered', mode='100644', content='b2s=')])
     run.release()
     stops = []
@@ -982,7 +1010,7 @@ def test_low_disk_restart_collects_submitted_boat_without_new_dispatch(queued, m
         try:
             recovered.execution.cli = cli
             assert isinstance(recovered.execution.observe(key), Terminal)
-            assert (recovered.spec.author_checkout / 'demo/recovered').read_text() == 'ok'
+            assert (Path(recovered.spec.author_checkout) / 'demo/recovered').read_text() == 'ok'
             assert recovered.execution.load(key).stop_confirmed
             with pytest.raises(InsufficientSpace):
                 recovered.execution.submit(WorkerKey(unit.run_id, 'review', v2.base))
@@ -994,3 +1022,40 @@ def test_low_disk_restart_collects_submitted_boat_without_new_dispatch(queued, m
     before = list(cli.calls)
     intake.once(child)
     assert len(stops) == 1 and cli.calls == before, 'terminal adoption must not repeat remote work'
+
+
+@pytest.mark.parametrize('remote_running', [False, True])
+def test_low_disk_unclaimed_boat_adopts_only_existing_command(env, monkeypatch, remote_running):
+    from test_boat import history_engine
+
+    from pilot1742.domain import Running
+    from pilot1742.run import InsufficientSpace
+    run, engine, key, binding, launches = history_engine(env, 'submitting', [])
+    if remote_running:
+        engine.cli.handlers['history'] = [{'commands': [{
+            'status': 'running', 'commandId': 'original', 'processId': 5,
+            'command': engine._command(binding, 'submit')}]}]
+    _low_disk(monkeypatch, 0)
+    try:
+        if remote_running:
+            assert isinstance(engine.observe(key), Running)
+            assert engine.load(key).command_id == 'original'
+            engine.submit(key)
+        else:
+            with pytest.raises(InsufficientSpace):
+                engine.observe(key)
+        assert launches == []
+    finally:
+        run.release()
+
+
+def test_low_disk_existing_checkout_cannot_start_fresh_worker(env, monkeypatch):
+    from pilot1742.run import InsufficientSpace
+    run = env.create()
+    _low_disk(monkeypatch, 0)
+    try:
+        with pytest.raises(InsufficientSpace):
+            run.run_worker('author', 'implement')
+        assert env.claims() == [] and not (run.dir / 'intents').exists()
+    finally:
+        run.release()

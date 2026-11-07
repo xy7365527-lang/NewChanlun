@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -112,3 +113,9 @@ def local_execution_fixture(monkeypatch):
     from pilot1742.boat_execution import HistoricalLocal
 
     monkeypatch.setattr(run, "new_execution", lambda **kwargs: HistoricalLocal())
+
+
+@pytest.fixture
+def wayfinder_engine_path():
+    return Path(os.environ.get("WAYFINDER_ENGINE_PATH", str(
+        Path(__file__).resolve().parents[3] / "scripts/wayfinder_engine.mts"))).resolve()
