@@ -567,7 +567,7 @@ jobs:
       # #1640：release-only 锁（S4 等，#[ignore = "release-only: …"]）此前只在 issue-1488-uo-iter.yml 执行，
       #   该 workflow 只在 codex/1488-uo-ci-20261019 推送时触发，PR 候选不覆盖。此处照搬其 release 步命令、
       #   清单与单测 2700 s 上限：生产增量构建 s_session,s_incremental，--release --ignored --exact 逐条执行。
-      - name: build release-only locks（#1640，同 issue-1488-uo-iter）
+      - name: build release-only locks（#1640）
         if: ${{ !cancelled() && matrix.group == 'release-locks' }}
         run: |
           set -o pipefail

@@ -37,12 +37,6 @@ skills:
     description: "Create or verify a checkpoint in your workflow"
     status: active
 
-  - name: code-review
-    type: command
-    file: .claude/commands/code-review.md
-    description: "Comprehensive security and quality review of uncommitted changes"
-    status: active
-
   - name: escalate
     type: command
     file: .claude/commands/escalate.md

@@ -1,3 +1,4 @@
+# 现状（#1932）：原读取本清单的 issue-1488-uo-iter.yml 已删除；清单内各锁仍随 ci.yml 的 s_session 全量分片运行，但不再逐名校验存在性。
 # 原六 driver（判据逐字不变）
 v3::driver::tests::audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification
 v3::driver::tests::audit_owner_complete_normal_second_connection_and_new_life_are_cold
